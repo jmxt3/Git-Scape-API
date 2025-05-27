@@ -22,7 +22,7 @@ async def read_item(item_id: int, q: str | None = None):
         response["q"] = q
     return response
 
-@app.get("/health2")
+@app.get("/health")
 def health_check():
     return {"status": "healthy"}
 
