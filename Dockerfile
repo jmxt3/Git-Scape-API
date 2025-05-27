@@ -14,8 +14,7 @@ COPY requirements.txt .
 #    --no-cache-dir: Disables the cache to reduce image size.
 #    --upgrade pip: Ensures pip is up-to-date.
 #    -r requirements.txt: Installs packages from the requirements file.
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
 # 5. Copy the rest of the application code into the container at /app
 COPY . .

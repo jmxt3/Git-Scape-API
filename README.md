@@ -12,6 +12,16 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 <!-- production -->
 uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
+## Docker Commands
+docker ps
+docker build -t git_scape_api .
+docker images
+docker run -d -p 8080:8080 --name git_scape_container git_scape_api
+
+docker stop git_scape_container
+docker rm git_scape_container
+docker rmi git_scape_api
+
 ## Features
 
 - RESTful API with CRUD operations
