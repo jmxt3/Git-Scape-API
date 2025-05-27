@@ -2,6 +2,18 @@
 
 A simple, well-structured FastAPI application designed to run on Google Cloud Run.
 
+## Quick Commands
+
+<!-- dev -->
+fastapi dev
+or
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+<!-- production -->
+fastapi run
+or
+uvicorn main:app --host 0.0.0.0 --port 8000
+
 ## Features
 
 - RESTful API with CRUD operations
