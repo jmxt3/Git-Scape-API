@@ -33,4 +33,4 @@ EXPOSE 8080
 #    - "--port", "${PORT:-8080}": Uvicorn will listen on the port specified by the
 #      PORT environment variable, defaulting to 8080 if PORT is not set.
 #      Google Cloud Run sets the PORT environment variable automatically.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${PORT:-8080}"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
