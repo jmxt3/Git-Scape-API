@@ -24,9 +24,10 @@ from collections import defaultdict
 from pathlib import Path
 from docling.document_converter import (  # type: ignore
     DocumentConverter,
-    PdfFormatOption,
-    SimplePipeline,
+    PdfFormatOption
 )
+
+from docling.pipeline.simple_pipeline import SimplePipeline
 from docling.datamodel.base_models import InputFormat  # type: ignore
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend  # type: ignore
 
@@ -135,7 +136,7 @@ def analyze_codebase(repo_path):
 
     # Set up Docling converter with format options
     doc_converter = DocumentConverter(
-        allowed_formats=DOCLING_FORMATS,
+        allowed_formats=list(DOCLING_FORMATS),
         format_options={
             InputFormat.PDF: PdfFormatOption(
                 pipeline_cls=SimplePipeline, backend=PyPdfiumDocumentBackend
@@ -159,12 +160,11 @@ def analyze_codebase(repo_path):
 
             # Determine if file should be processed by Docling
             path = Path(file_path)
-            try:
-                if doc_converter.can_convert(path):
-                    docling_files.append(path)
-                    continue
-            except Exception:
-                pass
+            # Check by extension if file is Docling-compatible
+            docling_exts = {'.pdf', '.docx', '.html', '.pptx', '.adoc', '.csv', '.md', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif'}
+            if ext in docling_exts:
+                docling_files.append(path)
+                continue
 
             # Skip ignored extensions for regular processing
             if ext in IGNORED_EXTENSIONS:
@@ -197,7 +197,7 @@ def analyze_codebase(repo_path):
             try:
                 results = doc_converter.convert_all(docling_files)
                 for res in results:
-                    if res.valid:
+                    if res.status == "success":
                         relative_path = os.path.relpath(str(res.input.file), repo_path)
                         markdown_content = res.document.export_to_markdown()
                         ext = os.path.splitext(relative_path)[1].lower()
