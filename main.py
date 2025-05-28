@@ -10,7 +10,7 @@ app = create_app()
 
 @app.get("/")
 def read_root():
-    return {"message": "FastAPI"}
+    return {"message": "GitScape"}
 
 @app.get("/converter")
 def get_digest(
