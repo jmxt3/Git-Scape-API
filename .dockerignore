@@ -21,3 +21,5 @@ ENV/
 # Local development
 .DS_Store
 *.log
+.llm/*
+*:Zone.Identifier
