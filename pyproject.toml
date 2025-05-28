@@ -1,7 +1,7 @@
 [project]
 name = "gitscapeapi"
 version = "0.1.0"
-description = "Add your description here"
+description = "The official API for GitScape, a tool for generating digests from any git repositories."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

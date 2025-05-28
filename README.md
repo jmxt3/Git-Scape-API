@@ -1,6 +1,6 @@
-# FastAPI Example for Google Cloud Run
+# GitScape API
 
-A simple, well-structured FastAPI application designed to run on Google Cloud Run.
+This is the official API for GitScape, a tool for generating digests from any git repositories. A simple, well-structured FastAPI application designed to run on Google Cloud Run.
 
 ## Quick Commands
 
