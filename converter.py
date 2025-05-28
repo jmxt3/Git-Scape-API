@@ -86,7 +86,8 @@ def clone_repository(repo_url, clone_path, github_token=None):
     try:
         subprocess.check_call(["git", "clone", "--depth", "1", repo_url, clone_path])
     except subprocess.CalledProcessError as e:
-        sys.exit(f"Error cloning repository: {e}")
+        # Raise an exception instead of exiting
+        raise RuntimeError(f"Error cloning repository: {e}")
 
 
 def generate_tree_structure(
@@ -187,7 +188,7 @@ def analyze_codebase(repo_path):
                     file_count += 1
                     total_lines += lines
                     extension_stats[ext]["files"] += 1
-                    extension_stats[ext]["lines"] += 1
+                    extension_stats[ext]["lines"] += lines  # <-- FIXED HERE
             except Exception:
                 continue
 
