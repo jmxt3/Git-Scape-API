@@ -7,8 +7,8 @@ class Settings(BaseSettings):
     Application settings loaded from environment variables
     """
     # App settings
-    APP_NAME: str = "FastAPI Cloud Run Example"
-    APP_DESCRIPTION: str = "A sample FastAPI application for Google Cloud Run"
+    APP_NAME: str = "GitScape API"
+    APP_DESCRIPTION: str = "The official API for GitScape, a tool for generating digests from any git repositories."
     APP_VERSION: str = "0.1.0"
 
     # CORS settings
