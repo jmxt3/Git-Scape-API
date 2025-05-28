@@ -17,15 +17,18 @@ def health_check():
     return {"status": "healthy"}
 
 @app.get("/githubDigest")
-def get_digest(repo_url: str = Query(..., description="Git repository URL to analyze")):
+def get_digest(
+    repo_url: str = Query(..., description="Git repository URL to analyze"),
+    github_token: str = Query(None, description="GitHub Personal Access Token for private repos or increased rate limits")
+):
     """
     Generate a comprehensive markdown summary of a Git repository's codebase. This summary includes file counts, total lines of code, statistics by file extension, and a tree structure of the repository, making it suitable for use with Large Language Models (LLMs).
     """
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             clone_path = os.path.join(tmpdir, "repo")
-            # Clone the repository
-            clone_repository(repo_url, clone_path)
+            # Clone the repository with optional token
+            clone_repository(repo_url, clone_path, github_token=github_token)
             # Analyze the codebase and generate statistics
             file_count, total_lines, extension_stats, file_contents, tree_structure = (
                 analyze_codebase(clone_path)

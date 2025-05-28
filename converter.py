@@ -7,9 +7,9 @@
 # 4. It collects basic statistics by file extension.
 # 5. Finally, it prints a markdown-formatted summary of the codebase.
 
-# To run the script, save it as, for example, "script.py", make it executable (or run with python3), and pass the Git URL:
+# To run the script standalone, save it as, for example, "converter.py", make it executable (or run with python3), and pass the Git URL:
 
-#   $ python script.py https://github.com/pallets/flask
+#   $ python converter.py https://github.com/pallets/flask
 
 # You can expand it further by including more detailed analysis (like code complexity, specific folder reports, etc.) depending on your needs.
 
@@ -72,11 +72,12 @@ IGNORED_EXTENSIONS = {
 }
 
 
-def clone_repository(repo_url, clone_path):
+def clone_repository(repo_url, clone_path, github_token=None):
     """Clone the repository from repo_url into clone_path.
-    Supports private repositories using a GITHUB_TOKEN environment variable.
+    Supports private repositories using a GitHub Personal Access Token.
     """
-    github_token = os.getenv("GITHUB_TOKEN")
+    if github_token is None:
+        github_token = os.getenv("GITHUB_TOKEN")
     if github_token and repo_url.startswith("https://github.com/"):
         # Insert token into the URL for authentication
         repo_url = repo_url.replace(
