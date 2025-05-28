@@ -14,7 +14,12 @@ COPY requirements.txt .
 #    --no-cache-dir: Disables the cache to reduce image size.
 #    --upgrade pip: Ensures pip is up-to-date.
 #    -r requirements.txt: Installs packages from the requirements file.
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc python3-dev \
+    && pip install --no-cache-dir --upgrade pip \
+    && apt-get install -y --no-install-recommends git curl \
+    && pip install --no-cache-dir --timeout 1000 -r requirements.txt \
+    && rm -rf /var/lib/apt/lists/*
 
 # 5. Copy the rest of the application code into the container at /app
 COPY . .
@@ -33,4 +38,4 @@ EXPOSE 8080
 #    - "--port", "${PORT:-8080}": Uvicorn will listen on the port specified by the
 #      PORT environment variable, defaulting to 8080 if PORT is not set.
 #      Google Cloud Run sets the PORT environment variable automatically.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

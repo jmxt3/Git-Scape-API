@@ -54,6 +54,7 @@ venv.bak/
 .DS_Store
 
 .llm/*
+/.llm
 *:Zone.Identifier
 *.tar.gz
 *.whl
