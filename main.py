@@ -4,7 +4,7 @@ import time
 import uvicorn
 from app.api import create_app
 from fastapi import Request, HTTPException, Query
-from .converter import clone_repository, analyze_codebase, generate_markdown
+from converter import clone_repository, analyze_codebase, generate_markdown
 
 app = create_app()
 
