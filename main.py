@@ -2,9 +2,9 @@ import os
 import tempfile
 import time
 import uvicorn
+import converter
 from app.api import create_app
 from fastapi import Request, HTTPException, Query
-from converter import clone_repository, analyze_codebase, generate_markdown
 
 app = create_app()
 
@@ -12,36 +12,16 @@ app = create_app()
 def read_root():
     return {"message": "FastAPI"}
 
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-
-@app.get("/githubDigest")
+@app.get("/converter")
 def get_digest(
     repo_url: str = Query(..., description="Git repository URL to analyze"),
     github_token: str = Query(None, description="GitHub Personal Access Token for private repos or increased rate limits")
-):
-    """
-    Generate a comprehensive markdown summary of a Git repository's codebase. This summary includes file counts, total lines of code, statistics by file extension, and a tree structure of the repository, making it suitable for use with Large Language Models (LLMs).
-    """
+    ):
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             clone_path = os.path.join(tmpdir, "repo")
-            # Clone the repository with optional token
-            clone_repository(repo_url, clone_path, github_token=github_token)
-            # Analyze the codebase and generate statistics
-            file_count, total_lines, extension_stats, file_contents, tree_structure = (
-                analyze_codebase(clone_path)
-            )
-            # Generate markdown digest output
-            markdown = generate_markdown(
-                repo_url,
-                file_count,
-                total_lines,
-                extension_stats,
-                file_contents,
-                tree_structure,
-            )
+            converter.clone_repository(repo_url, clone_path, github_token=github_token)
+            markdown = converter.generate_markdown_digest(repo_url, clone_path)
         return {"digest": markdown}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
