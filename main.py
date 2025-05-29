@@ -11,6 +11,7 @@ import time
 import uvicorn
 import converter # Assuming converter.py is in the same directory or accessible via PYTHONPATH
 import asyncio # Required for WebSocket and async operations
+import urllib.parse # For decoding URL-encoded parameters
 from app.api import create_app
 from fastapi import Request, HTTPException, Query, WebSocket, WebSocketDisconnect
 
@@ -31,6 +32,7 @@ def get_digest(
     This is a blocking operation.
     """
     try:
+        repo_url = urllib.parse.unquote(repo_url)  # Decode URL-encoded repo_url
         with tempfile.TemporaryDirectory() as tmpdir:
             clone_path = os.path.join(tmpdir, "repo")
             # The original clone_repository is now a generator,
@@ -59,6 +61,7 @@ async def websocket_converter(
     sender_task = None # Initialize sender_task to None
 
     try:
+        repo_url = urllib.parse.unquote(repo_url)  # Decode URL-encoded repo_url
         with tempfile.TemporaryDirectory() as tmpdir:
             clone_path = os.path.join(tmpdir, "repo")
             await websocket.send_text("progress: Starting repository clone...")
