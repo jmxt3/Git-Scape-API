@@ -1,3 +1,8 @@
+"""
+FastAPI application creation and configuration.
+
+Author: João Machete
+"""
 import os
 import time
 import logging

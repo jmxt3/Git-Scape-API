@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
+"""
+Handles Git repository cloning, analysis, and Markdown digest generation.
+Provides functionality to walk repository files, filter text-based files,
+and generate a structured Markdown output of the repository's content.
+Includes progress reporting capabilities for long-running operations.
 
+Author: João Machete
+"""
 import os
 import sys
 import tempfile

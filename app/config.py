@@ -1,3 +1,9 @@
+"""
+Application settings management using Pydantic.
+Loads configuration from environment variables and .env file.
+
+Author: João Machete
+"""
 import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict

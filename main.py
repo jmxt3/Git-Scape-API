@@ -1,3 +1,10 @@
+"""
+Main FastAPI application file for GitScape.
+Defines API endpoints for repository analysis and digest generation,
+including a standard HTTP endpoint and a WebSocket endpoint for real-time progress.
+
+Author: João Machete
+"""
 import os
 import tempfile
 import time
