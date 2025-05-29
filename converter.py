@@ -181,6 +181,7 @@ TEXT_EXTS = {
 def clone_repository(repo_url, clone_path, github_token=None):
     """Clone the repository from repo_url into clone_path.
     Supports private repositories using a GitHub Personal Access Token.
+    Yields progress messages during the cloning process.
     """
     if github_token is None:
         github_token = os.getenv("GITHUB_TOKEN")
@@ -190,74 +191,166 @@ def clone_repository(repo_url, clone_path, github_token=None):
             "https://github.com/", f"https://{github_token}:x-oauth-basic@github.com/"
         )
     try:
-        subprocess.check_call(["git", "clone", "--depth", "1", repo_url, clone_path])
-    except subprocess.CalledProcessError as e:
-        # Raise an exception instead of exiting
-        raise RuntimeError(f"Error cloning repository: {e}")
+        # Use Popen to stream output
+        process = subprocess.Popen(["git", "clone", "--depth", "1", "--progress", repo_url, clone_path],
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        if process.stdout:
+            for line in iter(process.stdout.readline, ''):
+                yield f"clone: {line.strip()}"
+            process.stdout.close()
+        else:
+            yield "clone: Failed to capture stdout from git clone process." # Or handle as an error
 
-def is_text_file(path):
+        return_code = process.wait()
+        if return_code:
+            # Attempt to get more error details if stderr was redirected to stdout
+            # This part is tricky as stdout is already consumed or closed.
+            # For simplicity, we'll stick to the original error reporting.
+            raise subprocess.CalledProcessError(return_code, process.args)
+    except subprocess.CalledProcessError as e:
+        # Consider yielding an error message here too, or ensure the calling code handles it
+        yield f"clone_error: Error cloning repository: {e}"
+        raise RuntimeError(f"Error cloning repository: {e}")
+    except FileNotFoundError: # Specifically catch if git command is not found
+        yield "clone_error: Git command not found. Please ensure Git is installed and in your PATH."
+        raise RuntimeError("Git command not found. Please ensure Git is installed and in your PATH.")
+    except Exception as e: # Catch other potential errors
+        yield f"clone_error: An unexpected error occurred during cloning: {e}"
+        raise RuntimeError(f"An unexpected error occurred during cloning: {e}")
+
+def is_text_file(path: Path) -> bool:
+    """Check if a file is a text file based on its extension."""
     ext = path.suffix.lower()
     return ext in TEXT_EXTS
 
-def walk_repo(repo_path):
-    file_summaries = []
+def walk_repo(repo_path: str):
+    """
+    Walk through the repository, yielding progress messages and file content.
+    Skips ignored directories, ignored files, large files, and binary files.
+    """
+    all_files = []
     for root, dirs, files in os.walk(repo_path):
-        # Prune ignored dirs
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
-        for file in sorted(files):
+        for file in files:
             if file in IGNORED_FILES:
                 continue
             path = Path(root) / file
-            rel_path = os.path.relpath(path, repo_path)
-            if path.stat().st_size > MAX_FILE_SIZE:
-                continue
-            if not is_text_file(path):
-                continue
             try:
-                with open(path, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
-                file_summaries.append((rel_path, content))
-            except Exception:
+                if path.stat().st_size > MAX_FILE_SIZE:
+                    yield f"progress: Skipping large file {os.path.relpath(path, repo_path)}"
+                    continue
+                if not is_text_file(path):
+                    yield f"progress: Skipping binary file {os.path.relpath(path, repo_path)}"
+                    continue
+                all_files.append(path)
+            except FileNotFoundError: # Handle cases where file might disappear during walk
+                yield f"progress: File not found during walk: {os.path.relpath(path, repo_path)}"
                 continue
-    return file_summaries
 
-def print_tree(repo_path):
+
+    total_files = len(all_files)
+    for i, path in enumerate(all_files):
+        rel_path = os.path.relpath(path, repo_path)
+        yield f"progress: Processing file {i+1} of {total_files}: {rel_path}"
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            yield {"type": "file_content", "path": rel_path, "content": content}
+        except Exception as e:
+            yield f"progress: Error reading file {rel_path}: {e}"
+            continue
+
+def print_tree(repo_path: str) -> list[str]:
+    """Generate a list of strings representing the directory tree."""
     lines = []
     for root, dirs, files in os.walk(repo_path):
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
         level = os.path.relpath(root, repo_path).count(os.sep)
         indent = "    " * level
-        lines.append(f"{indent}{os.path.basename(root)}/")
+        # Handle the case where repo_path is the root itself
+        base_name = os.path.basename(root) if root != repo_path else os.path.basename(os.path.abspath(root))
+        lines.append(f"{indent}{base_name}/")
         for f in sorted(files):
             if f in IGNORED_FILES:
                 continue
             lines.append(f"{indent}    {f}")
     return lines
 
-def generate_markdown_digest(repo_url, repo_path):
-    md = []
-    md.append(f"# Codebase Digest for {repo_url}\n")
-    md.append("## Directory Tree\n")
-    md.append("```")
-    md.extend(print_tree(repo_path))
-    md.append("```\n")
-    md.append("## Files and Content\n")
-    for rel_path, content in walk_repo(repo_path):
-        ext = Path(rel_path).suffix.lstrip(".")
-        md.append(f"### {rel_path}\n")
-        md.append(f"```{ext}\n{content}\n```\n")
-    return "\n".join(md)
+def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=None) -> str:
+    """
+    Generate a Markdown digest for the given repository.
+    Includes a directory tree and content of text files.
+    Uses progress_callback to report progress during generation.
+    """
+    if progress_callback is None:
+        progress_callback = lambda x: None # No-op if no callback
+
+    md_parts = []
+    progress_callback("progress: Starting Markdown digest generation.")
+    md_parts.append(f"# Codebase Digest for {repo_url}\n")
+
+    progress_callback("progress: Generating directory tree...")
+    md_parts.append("## Directory Tree\n")
+    md_parts.append("```")
+    tree_lines = print_tree(repo_path)
+    for line in tree_lines:
+        md_parts.append(line)
+    md_parts.append("```\n")
+    progress_callback("progress: Directory tree generated.")
+
+    progress_callback("progress: Processing files for content...")
+    md_parts.append("## Files and Content\n")
+
+    for item in walk_repo(repo_path):
+        if isinstance(item, str) and (item.startswith("progress:") or item.startswith("clone_error:")):
+            progress_callback(item)
+        elif isinstance(item, dict) and item.get("type") == "file_content":
+            rel_path = item["path"]
+            content = item["content"]
+            ext = Path(rel_path).suffix.lstrip(".")
+            md_parts.append(f"### {rel_path}\n")
+            md_parts.append(f"```{ext}\n{content}\n```\n")
+            # This specific callback might be too verbose for many files,
+            # consider if walk_repo's "Processing file X of Y" is sufficient.
+            # progress_callback(f"progress: Appended content for {rel_path} to digest")
+    progress_callback("progress: File content processing complete.")
+    progress_callback("progress: Markdown digest generation complete.")
+    return "\n".join(md_parts)
 
 # If run as script, keep the CLI for backward compatibility
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python converter2.py <repo_path_or_git_url>")
+        print("Usage: python converter.py <repo_path_or_git_url>")
         sys.exit(1)
     src = sys.argv[1]
+
+    # Define a simple progress printer for CLI
+    def cli_progress_printer(message):
+        print(message, file=sys.stderr)
+
     with tempfile.TemporaryDirectory() as tmpdir:
-        repo_path = tmpdir
+        # Construct clone_path within tmpdir
+        # Ensure the "repo" subdirectory is used consistently if needed,
+        # or clone directly into tmpdir if that's the intention.
+        # For simplicity, let's assume clone_repository handles the exact path.
+        actual_clone_path = os.path.join(tmpdir, "repo_cli_clone") # Use a distinct name or pass tmpdir directly
+
         if src.startswith("http://") or src.startswith("https://") or src.endswith(".git"):
-            clone_repository(src, repo_path)
+            cli_progress_printer(f"Cloning {src} into {actual_clone_path}...")
+            try:
+                for progress_update in clone_repository(src, actual_clone_path):
+                    cli_progress_printer(progress_update)
+                # After successful clone, repo_path for digest is actual_clone_path
+                repo_to_digest = actual_clone_path
+                repo_url_for_digest = src # Use original src URL for the digest title
+            except RuntimeError as e:
+                cli_progress_printer(f"Failed to clone repository: {e}")
+                sys.exit(1)
         else:
-            repo_path = src
-        print(generate_markdown_digest(src, repo_path))
+            # If src is a local path, use it directly
+            repo_to_digest = src
+            repo_url_for_digest = f"local path: {src}" # Adjust how local paths are named in digest
+
+        cli_progress_printer(f"Generating digest for {repo_to_digest}...")
+        final_digest = generate_markdown_digest(repo_url_for_digest, repo_to_digest, progress_callback=cli_progress_printer)
+        print(final_digest)
