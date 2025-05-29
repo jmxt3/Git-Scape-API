@@ -12,9 +12,9 @@ def create_app() -> FastAPI:
     Create and configure the FastAPI application
     """
     app = FastAPI(
-        title=settings.APP_NAME,
-        description=settings.APP_DESCRIPTION,
-        version=settings.APP_VERSION,
+        title=str(settings.APP_NAME),
+        description=str(settings.APP_DESCRIPTION),
+        version=str(settings.APP_VERSION),
     )
 
     # Configure CORS

@@ -1,22 +1,24 @@
 import os
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
+load_dotenv()
 
 class Settings(BaseSettings):
     """
     Application settings loaded from environment variables
     """
+
     # App settings
-    APP_NAME: str = "GitScape API"
-    APP_DESCRIPTION: str = "The official API for GitScape, a tool for generating digests from any git repositories."
-    APP_VERSION: str = "0.1.0"
+    APP_NAME: Optional[str] = os.getenv("APP_NAME", "GitScape")
+    APP_DESCRIPTION: Optional[str] = os.getenv("APP_DESCRIPTION", "Git repository analysis and digest generation tool")
+    APP_VERSION: Optional[str] = os.getenv("APP_VERSION", "0.1.0")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    DEBUG: bool = ENVIRONMENT == "development"
 
     # CORS settings
     CORS_ORIGINS: List[str] = ["*"]
 
-    # Environment
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    DEBUG: bool = ENVIRONMENT == "development"
 
     class Config:
         env_file = ".env"
