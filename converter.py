@@ -223,9 +223,9 @@ def is_text_file(path: Path) -> bool:
     ext = path.suffix.lower()
     return ext in TEXT_EXTS
 
-def walk_repo(repo_path: str):
+def trace_repo(repo_path: str):
     """
-    Walk through the repository, yielding progress messages and file content.
+    Go through the repository, yielding progress messages and file content.
     Skips ignored directories, ignored files, large files, and binary files.
     """
     all_files = []
@@ -301,7 +301,7 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
     progress_callback("progress: Processing files for content...")
     md_parts.append("## Files and Content\n")
 
-    for item in walk_repo(repo_path):
+    for item in trace_repo(repo_path):
         if isinstance(item, str) and (item.startswith("progress:") or item.startswith("clone_error:")):
             progress_callback(item)
         elif isinstance(item, dict) and item.get("type") == "file_content":
