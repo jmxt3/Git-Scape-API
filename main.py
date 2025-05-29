@@ -14,6 +14,7 @@ import asyncio # Required for WebSocket and async operations
 import urllib.parse # For decoding URL-encoded parameters
 from app.api import create_app
 from fastapi import Request, HTTPException, Query, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
 app = create_app()
 
@@ -142,8 +143,12 @@ async def websocket_converter(
             except Exception as e_cancel:
                 print(f"Error during sender_task cancellation: {e_cancel}")
 
-        if websocket.client_state == websocket.client_state.CONNECTED:
-            await websocket.close()
+        # Only attempt to close if still connected
+        if websocket.client_state == WebSocketState.CONNECTED:
+            try:
+                await websocket.close()
+            except RuntimeError as close_err:
+                print(f"WebSocket close error (already closed?): {close_err}")
         print(f"WebSocket connection closed for {websocket.client}")
 
 
