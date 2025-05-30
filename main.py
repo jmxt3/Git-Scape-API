@@ -17,6 +17,7 @@ import logging
 from app.api import create_app
 from fastapi import Request, HTTPException, Query, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
+from fastapi.responses import FileResponse, HTMLResponse
 # slowapi imports
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -42,11 +43,19 @@ def rate_limit_handler(request, exc):
         content={"detail": "Rate limit exceeded. Please try again later."}
     )
 
-@app.get("/")
-@limiter.limit("10/minute")
-def read_root(request: Request):
-    """Root endpoint providing a welcome message."""
-    return {"message": "GitScape"}
+@app.head("/")
+async def head_root() -> HTMLResponse:
+    """
+    Respond to HTTP HEAD requests for the root URL.
+
+    Mirrors the headers and status code of the index page.
+
+    Returns
+    -------
+    HTMLResponse
+        An empty HTML response with appropriate headers.
+    """
+    return HTMLResponse(content=None, headers={"content-type": "text/html; charset=utf-8"})
 
 @app.get("/converter")
 @limiter.limit("5/minute")
@@ -62,12 +71,8 @@ def get_digest(request: Request,
         repo_url = urllib.parse.unquote(repo_url)  # Decode URL-encoded repo_url
         with tempfile.TemporaryDirectory() as tmpdir:
             clone_path = os.path.join(tmpdir, "repo")
-            # The original clone_repository is now a generator,
-            # but for the HTTP endpoint, we consume it without sending progress.
-            # This could be made more efficient if needed, but for now,
-            # we'll just iterate through it to ensure it completes.
-            for _ in converter.clone_repository(repo_url, clone_path, github_token=github_token):
-                pass # Consume generator
+            # Call clone_repository as a regular function (not iterable)
+            converter.clone_repository(repo_url, clone_path, github_token=github_token)
             markdown = converter.generate_markdown_digest(repo_url, clone_path)
         return {"digest": markdown}
     except Exception as e:
@@ -92,11 +97,8 @@ async def websocket_converter(
         with tempfile.TemporaryDirectory() as tmpdir:
             clone_path = os.path.join(tmpdir, "repo")
             await websocket.send_text(json.dumps({"type": "progress", "message": "Starting repository clone...", "percentage": 0}))
-            # Stream clone progress (still as text, for now)
-            for progress_update in converter.clone_repository(repo_url, clone_path, github_token=github_token):
-                await websocket.send_text(json.dumps({"type": "progress", "message": str(progress_update), "percentage": 5}))
-                await asyncio.sleep(0.01)
-
+            # Call clone_repository as a regular function (not iterable)
+            converter.clone_repository(repo_url, clone_path, github_token=github_token)
             await websocket.send_text(json.dumps({"type": "progress", "message": "Repository cloned. Starting digest generation...", "percentage": 10}))
 
             progress_queue = asyncio.Queue()

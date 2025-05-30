@@ -10,18 +10,21 @@ Author: João Machete
 import os
 import sys
 import tempfile
+import shutil
 import subprocess
 import gc
 import logging
-
 from pathlib import Path
+from typing import Optional, Callable
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MAX_TOTAL_REPO_SIZE = 50 * 1024 * 1024  # 50 MB per repo (adjust as needed)
-MAX_FILE_SIZE = 100 * 1024  # 100 KB per file
-MAX_FILE_COUNT = 2000  # Max number of files to process per repo
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB per file
+MAX_DIRECTORY_DEPTH = 20  # Maximum depth of directory traversal
+MAX_FILES = 10_000  # Maximum number of files to process
+MAX_TOTAL_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB total repo size
+CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 IGNORED_DIRS = {".git", "__pycache__"}
 IGNORED_FILES = {
@@ -89,272 +92,124 @@ TEXT_EXTS = {
     ".yaml",        # YAML (alternative)
     ".xml",         # XML
     ".toml",        # TOML
-    ".cfg",         # Configuration
-    ".conf",        # Configuration (generic)
-    ".config",      # Configuration (alternative)
     ".graphql",     # GraphQL Schema/Query
-    ".gradle",      # Gradle build script (Groovy)
-    ".dockerfile",  # Dockerfile (or often just 'Dockerfile' with no ext)
     ".sql",         # SQL Queries
 }
 
-def clone_repository(repo_url, clone_path, github_token=None):
-    """Clone the repository from repo_url into clone_path.
-    Supports private repositories using a GitHub Personal Access Token.
-    Yields progress messages during the cloning process.
-    Enhanced: Uses --single-branch and --filter=blob:none to minimize resource usage.
-    Handles SIGKILL and similar errors for user-friendly reporting.
+def clone_repository(repo_url: str, clone_path: str, github_token: Optional[str] = None, subpath: Optional[str] = None):
     """
-    import signal
-    if github_token is None:
-        github_token = os.getenv("GITHUB_TOKEN")
-    if github_token and repo_url.startswith("https://github.com/"):
-        # Insert token into the URL for authentication
-        repo_url = repo_url.replace(
-            "https://github.com/", f"https://{github_token}:x-oauth-basic@github.com/"
-        )
-    try:
-        # Use Popen to stream output, add --single-branch and --filter=blob:none
-        process = subprocess.Popen([
-            "git", "clone", "--depth", "1", "--single-branch", "--filter=blob:none", "--progress", repo_url, clone_path
-        ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-        if process.stdout:
-            for line in iter(process.stdout.readline, ''):
-                yield f"Clone {line.strip()}"
-            process.stdout.close()
-        else:
-            yield "clone: Failed to capture stdout from git clone process."
-
-        return_code = process.wait()
-        if return_code:
-            # Check if killed by signal (e.g., SIGKILL)
-            if process.returncode < 0:
-                sig = -process.returncode
-                if sig == signal.SIGKILL:
-                    yield "clone_error: Clone process was killed (SIGKILL). This usually means the repository is too large or the server ran out of memory. Try a smaller repository."
-                    raise RuntimeError("Clone process killed (SIGKILL): repository too large or server out of memory.")
-                else:
-                    yield f"clone_error: Clone process was killed by signal {sig}."
-                    raise RuntimeError(f"Clone process killed by signal {sig}.")
-            # Attempt to get more error details if stderr was redirected to stdout
-            # This part is tricky as stdout is already consumed or closed.
-            # For simplicity, we'll stick to the original error reporting.
-            raise subprocess.CalledProcessError(return_code, process.args)
-    except subprocess.CalledProcessError as e:
-        yield f"clone_error: Error cloning repository: {e}"
-        raise RuntimeError(f"Error cloning repository: {e}")
-    except FileNotFoundError:
-        yield "clone_error: Git command not found. Please ensure Git is installed and in your PATH."
-        raise RuntimeError("Git command not found. Please ensure Git is installed and in your PATH.")
-    except Exception as e:
-        yield f"clone_error: An unexpected error occurred during cloning: {e}"
-        raise RuntimeError(f"An unexpected error occurred during cloning: {e}")
+    Clone a repository using sparse checkout and blob filtering to minimize memory usage.
+    """
+    if os.path.exists(clone_path):
+        shutil.rmtree(clone_path)
+    os.makedirs(clone_path, exist_ok=True)
+    env = os.environ.copy()
+    if github_token:
+        env["GIT_ASKPASS"] = "echo"
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        repo_url = repo_url.replace("https://", f"https://{github_token}@")
+    clone_cmd = [
+        "git", "clone", "--filter=blob:none", "--sparse", "--depth=1", repo_url, clone_path
+    ]
+    subprocess.run(clone_cmd, check=True, env=env)
+    if subpath:
+        # Enable sparse checkout for a specific subpath
+        subprocess.run(["git", "-C", clone_path, "sparse-checkout", "set", subpath], check=True, env=env)
 
 def is_text_file(path: Path) -> bool:
-    """Check if a file is a text file based on its extension."""
     ext = path.suffix.lower()
     return ext in TEXT_EXTS
 
 def get_total_repo_size(repo_path: str) -> int:
-    """Calculate the total size of all files in the repo, skipping ignored files/dirs."""
     total = 0
-    count = 0
     for root, dirs, files in os.walk(repo_path):
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
-        for file in files:
-            if file in IGNORED_FILES:
-                continue
-            path = Path(root) / file
+        for f in files:
             try:
-                if not is_text_file(path):
-                    continue
-                size = path.stat().st_size
-                if size > MAX_FILE_SIZE:
-                    continue
-                total += size
-                count += 1
-                if total > MAX_TOTAL_REPO_SIZE or count > MAX_FILE_COUNT:
-                    return total
-            except FileNotFoundError:
+                total += os.path.getsize(os.path.join(root, f))
+            except Exception:
                 continue
     return total
 
-def trace_repo(repo_path: str):
+def read_file_in_chunks(path: Path, chunk_size: int = CHUNK_SIZE):
+    with open(path, "rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
+
+def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] = None):
     """
-    Go through the repository, yielding file content only (no per-file progress messages).
-    Skips ignored directories, ignored files, large files, and binary files.
-    Limits total repo size and file count.
+    Walk the repo, process files in a memory-efficient way, and call file_callback for each file.
     """
-    all_files = []
-    total_size = 0
+    stats = {"total_files": 0, "total_size": 0}
     for root, dirs, files in os.walk(repo_path):
+        # Filter ignored dirs
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
         for file in files:
-            if file in IGNORED_FILES:
-                continue
             path = Path(root) / file
-            try:
-                size = path.stat().st_size
-                if size > MAX_FILE_SIZE:
-                    continue
-                if not is_text_file(path):
-                    continue
-                if total_size + size > MAX_TOTAL_REPO_SIZE or len(all_files) >= MAX_FILE_COUNT:
-                    break
-                all_files.append(path)
-                total_size += size
-            except FileNotFoundError:
+            if path.suffix.lower() in IGNORED_FILES or path.name in IGNORED_FILES:
                 continue
-        if total_size > MAX_TOTAL_REPO_SIZE or len(all_files) >= MAX_FILE_COUNT:
-            break
-
-    for path in all_files:
-        rel_path = os.path.relpath(path, repo_path)
-        try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                # Stream file content line by line to avoid large memory usage
-                content_lines = []
-                for line in f:
-                    content_lines.append(line)
-                content = ''.join(content_lines)
-            yield {"type": "file_content", "path": rel_path, "content": content}
-        except Exception as e:
-            continue
+            if not is_text_file(path):
+                continue
+            file_size = path.stat().st_size
+            if file_size > MAX_FILE_SIZE:
+                logger.info(f"Skipping large file: {path} ({file_size} bytes)")
+                continue
+            if stats["total_files"] >= MAX_FILES or stats["total_size"] + file_size > MAX_TOTAL_SIZE_BYTES:
+                logger.warning("File or size limit reached, stopping traversal.")
+                return
+            stats["total_files"] += 1
+            stats["total_size"] += file_size
+            if file_callback:
+                file_callback(path)
+            gc.collect()  # Free memory after each file
 
 def print_tree(repo_path: str) -> list[str]:
-    """Generate a list of strings representing the directory tree."""
-    lines = []
+    """
+    Print a tree structure of the repository (memory efficient).
+    """
+    tree_lines = []
     for root, dirs, files in os.walk(repo_path):
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
-        level = os.path.relpath(root, repo_path).count(os.sep)
-        indent = "    " * level
-        # Handle the case where repo_path is the root itself
-        base_name = os.path.basename(root) if root != repo_path else os.path.basename(os.path.abspath(root))
-        lines.append(f"{indent}{base_name}/")
-        for f in sorted(files):
-            if f in IGNORED_FILES:
-                continue
-            lines.append(f"{indent}    {f}")
-    return lines
+        level = root.replace(repo_path, '').count(os.sep)
+        indent = ' ' * 4 * level
+        tree_lines.append(f"{indent}{os.path.basename(root)}/")
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            tree_lines.append(f"{subindent}{f}")
+    return tree_lines
 
 def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=None) -> str:
     """
-    Generate a Markdown digest for the given repository.
-    Includes a directory tree and content of text files.
-    Uses progress_callback to report progress during generation.
-    Now reports progress as a percentage (0-100%) for each step and per file, sending JSON-serializable dicts.
-    Enforces repo/file size and file count limits. Calls gc.collect() after processing.
+    Generate a Markdown digest of the repository, reading large files in chunks.
     """
-    if progress_callback is None:
-        progress_callback = lambda msg, pct: None # No-op if no callback
-
-    # Check repo size and file count before processing
-    total_size = get_total_repo_size(repo_path)
-    if total_size > MAX_TOTAL_REPO_SIZE:
-        progress_callback(f"Repository too large (>{MAX_TOTAL_REPO_SIZE//1024//1024}MB). Aborting.", 100)
-        return f"Repository too large (>{MAX_TOTAL_REPO_SIZE//1024//1024}MB). Digest not generated."
-
-    md_parts = []
-    progress_callback("Starting Markdown digest generation.", 0)
-    md_parts.append(f"# Codebase Digest for {repo_url}\n")
-
-    progress_callback("Generating directory tree...", 10)
-    md_parts.append("## Directory Tree\n")
-    md_parts.append("```")
-    tree_lines = print_tree(repo_path)
-    for line in tree_lines:
-        md_parts.append(line)
-    md_parts.append("```\n")
-    progress_callback("Directory tree generated.", 20)
-
-    progress_callback("Digesting files for content...", 30)
-    md_parts.append("## Files and Content\n")
-
-    # Gather all files first for progress calculation, with limits
-    all_files = []
-    total_size = 0
-    for root, dirs, files in os.walk(repo_path):
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
-        for file in files:
-            if file in IGNORED_FILES:
-                continue
-            path = Path(root) / file
-            try:
-                size = path.stat().st_size
-                if size > MAX_FILE_SIZE:
-                    continue
-                if not is_text_file(path):
-                    continue
-                if total_size + size > MAX_TOTAL_REPO_SIZE or len(all_files) >= MAX_FILE_COUNT:
-                    break
-                all_files.append(path)
-                total_size += size
-            except FileNotFoundError:
-                continue
-        if total_size > MAX_TOTAL_REPO_SIZE or len(all_files) >= MAX_FILE_COUNT:
-            break
-    total_files = len(all_files)
-    if total_files == 0:
-        progress_callback("No files to process.", 90)
-    else:
-        for idx, path in enumerate(all_files):
-            rel_path = os.path.relpath(path, repo_path)
-            try:
-                with open(path, "r", encoding="utf-8", errors="replace") as f:
-                    # Stream file content line by line
-                    content_lines = []
-                    for line in f:
-                        content_lines.append(line)
-                    content = ''.join(content_lines)
-                ext = Path(rel_path).suffix.lstrip(".")
-                md_parts.append(f"### {rel_path}\n")
-                md_parts.append(f"```{ext}\n{content}\n```\n")
-            except Exception:
-                continue
-            percent = 30 + int((idx + 1) / total_files * 60)
-            progress_callback(f"Digesting {idx+1}/{total_files} files...", percent)
-
-    progress_callback("File content processing complete.", 95)
-    progress_callback("Markdown digest generation complete.", 100)
-    # Explicitly free memory
-    del all_files, content_lines, content
+    digest_lines = [f"# Repository Digest for {repo_url}\n"]
+    def process_file(path: Path):
+        digest_lines.append(f"\n## {path.relative_to(repo_path)}\n")
+        try:
+            for chunk in read_file_in_chunks(path):
+                try:
+                    digest_lines.append(chunk.decode("utf-8", errors="replace"))
+                except Exception:
+                    digest_lines.append("[Error decoding chunk]\n")
+        except Exception as e:
+            digest_lines.append(f"[Error reading file: {e}]\n")
+        if progress_callback:
+            progress_callback(path)
+    trace_repo(repo_path, file_callback=process_file)
     gc.collect()
-    return "\n".join(md_parts)
+    return "".join(digest_lines)
 
 # If run as script, keep the CLI for backward compatibility
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        logger.error("Usage: python converter.py <repo_path_or_git_url>")
-        sys.exit(1)
-    src = sys.argv[1]
-
-    # Define a simple progress printer for CLI
-    def cli_progress_printer(message):
-        logger.info(message)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Construct clone_path within tmpdir
-        # Ensure the "repo" subdirectory is used consistently if needed,
-        # or clone directly into tmpdir if that's the intention.
-        # For simplicity, let's assume clone_repository handles the exact path.
-        actual_clone_path = os.path.join(tmpdir, "repo_cli_clone") # Use a distinct name or pass tmpdir directly
-
-        if src.startswith("http://") or src.startswith("https://") or src.endswith(".git"):
-            cli_progress_printer(f"Cloning {src} into {actual_clone_path}...")
-            try:
-                for progress_update in clone_repository(src, actual_clone_path):
-                    cli_progress_printer(progress_update)
-                # After successful clone, repo_path for digest is actual_clone_path
-                repo_to_digest = actual_clone_path
-                repo_url_for_digest = src # Use original src URL for the digest title
-            except RuntimeError as e:
-                logger.error(f"Failed to clone repository: {e}")
-                sys.exit(1)
-        else:
-            # If src is a local path, use it directly
-            repo_to_digest = src
-            repo_url_for_digest = f"local path: {src}" # Adjust how local paths are named in digest
-
-        cli_progress_printer(f"Generating digest for {repo_to_digest}...")
-        final_digest = generate_markdown_digest(repo_url_for_digest, repo_to_digest, progress_callback=cli_progress_printer)
-        logger.info(final_digest)
+    # Example usage: python converter.py <repo_url> <clone_path>
+    import sys
+    if len(sys.argv) >= 3:
+        repo_url = sys.argv[1]
+        clone_path = sys.argv[2]
+        clone_repository(repo_url, clone_path)
+        print("\n".join(print_tree(clone_path)))
+        print("\n--- Markdown Digest ---\n")
+        print(generate_markdown_digest(repo_url, clone_path))
+    else:
+        print("Usage: python converter.py <repo_url> <clone_path>")
