@@ -274,35 +274,62 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
     Generate a Markdown digest for the given repository.
     Includes a directory tree and content of text files.
     Uses progress_callback to report progress during generation.
+    Now reports progress as a percentage (0-100%) for each step and per file, but only the message is sent to the callback (no percentage in the message).
     """
     if progress_callback is None:
         progress_callback = lambda x: None # No-op if no callback
 
     md_parts = []
-    progress_callback("progress: Starting Markdown digest generation.")
+    progress_callback("Starting Markdown digest generation.")
     md_parts.append(f"# Codebase Digest for {repo_url}\n")
 
-    progress_callback("progress: Generating directory tree...")
+    progress_callback("Generating directory tree...")
     md_parts.append("## Directory Tree\n")
     md_parts.append("```")
     tree_lines = print_tree(repo_path)
     for line in tree_lines:
         md_parts.append(line)
     md_parts.append("```\n")
-    progress_callback("progress: Directory tree generated.")
+    progress_callback("Directory tree generated.")
 
-    progress_callback("progress: Processing files for content...")
+    progress_callback("Processing files for content...")
     md_parts.append("## Files and Content\n")
 
-    for item in trace_repo(repo_path):
-        if isinstance(item, dict) and item.get("type") == "file_content":
-            rel_path = item["path"]
-            content = item["content"]
-            ext = Path(rel_path).suffix.lstrip(".")
-            md_parts.append(f"### {rel_path}\n")
-            md_parts.append(f"```{ext}\n{content}\n```\n")
-    progress_callback("progress: File content processing complete.")
-    progress_callback("progress: Markdown digest generation complete.")
+    # Gather all files first for progress calculation
+    all_files = []
+    for root, dirs, files in os.walk(repo_path):
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        for file in files:
+            if file in IGNORED_FILES:
+                continue
+            path = Path(root) / file
+            try:
+                if path.stat().st_size > MAX_FILE_SIZE:
+                    continue
+                if not is_text_file(path):
+                    continue
+                all_files.append(path)
+            except FileNotFoundError:
+                continue
+    total_files = len(all_files)
+    if total_files == 0:
+        progress_callback("No files to process.")
+    else:
+        for idx, path in enumerate(all_files):
+            rel_path = os.path.relpath(path, repo_path)
+            try:
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read()
+                ext = Path(rel_path).suffix.lstrip(".")
+                md_parts.append(f"### {rel_path}\n")
+                md_parts.append(f"```{ext}\n{content}\n```\n")
+            except Exception:
+                continue
+            # Only send a generic progress message, not the percentage
+            progress_callback(f"Processed {idx+1}/{total_files} files.")
+
+    progress_callback("File content processing complete.")
+    progress_callback("Markdown digest generation complete.")
     return "\n".join(md_parts)
 
 # If run as script, keep the CLI for backward compatibility
