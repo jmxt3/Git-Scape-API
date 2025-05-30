@@ -10,6 +10,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 load_dotenv()
 
+origins = [
+    "https://gitscape.ai/",  # Your production frontend
+    "http://localhost:8000", # Your local development frontend (optional)
+]
+
 class Settings(BaseSettings):
     """
     Application settings loaded from environment variables
@@ -23,8 +28,7 @@ class Settings(BaseSettings):
     DEBUG: bool = ENVIRONMENT == "development"
 
     # CORS settings
-    CORS_ORIGINS: List[str] = ["*"]
-
+    CORS_ORIGINS: List[str] = origins
 
     class Config:
         env_file = ".env"
