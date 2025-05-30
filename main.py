@@ -13,18 +13,43 @@ import converter # Assuming converter.py is in the same directory or accessible 
 import asyncio # Required for WebSocket and async operations
 import urllib.parse # For decoding URL-encoded parameters
 import json
+import logging
 from app.api import create_app
 from fastapi import Request, HTTPException, Query, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
+# slowapi imports
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from fastapi.responses import JSONResponse
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = create_app()
 
+# SlowAPI setup
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+# Custom handler for RateLimitExceeded
+@app.exception_handler(RateLimitExceeded)
+def rate_limit_handler(request, exc):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please try again later."}
+    )
+
 @app.get("/")
+@limiter.limit("10/minute")
 def read_root():
     """Root endpoint providing a welcome message."""
     return {"message": "GitScape"}
 
 @app.get("/converter")
+@limiter.limit("5/minute")
 def get_digest(
     repo_url: str = Query(..., description="Git repository URL to analyze"),
     github_token: str = Query(None, description="GitHub Personal Access Token for private repos or increased rate limits")
@@ -80,7 +105,7 @@ async def websocket_converter(
                 try:
                     asyncio.run_coroutine_threadsafe(progress_queue.put({"type": "progress", "message": message, "percentage": percentage}), loop).result()
                 except Exception as e:
-                    print(f"Error in sync_progress_callback putting to queue: {e}")
+                    logger.error(f"Error in sync_progress_callback putting to queue: {e}")
 
             async def queue_to_websocket_sender():
                 while True:
@@ -91,11 +116,11 @@ async def websocket_converter(
                     try:
                         await websocket.send_text(json.dumps(item))
                     except WebSocketDisconnect:
-                        print("WebSocket disconnected during send from queue.")
+                        logger.info("WebSocket disconnected during send from queue.")
                         progress_queue.task_done()
                         break
                     except Exception as e:
-                        print(f"Error sending message from queue to websocket: {e}")
+                        logger.error(f"Error sending message from queue to websocket: {e}")
                     progress_queue.task_done()
                     await asyncio.sleep(0.01)
 
@@ -116,30 +141,30 @@ async def websocket_converter(
             await websocket.send_text(json.dumps({"type": "digest_complete", "digest": markdown_digest, "percentage": 100}))
 
     except WebSocketDisconnect:
-        print(f"Client {websocket.client} disconnected")
+        logger.info(f"Client {websocket.client} disconnected")
     except Exception as e:
         error_message = f"An unexpected error occurred: {str(e)}"
         try:
             if websocket.client_state == websocket.client_state.CONNECTED:
                 await websocket.send_text(json.dumps({"type": "error", "message": error_message, "percentage": 100}))
         except Exception as ws_send_error:
-            print(f"Error sending error to WebSocket during general exception: {ws_send_error}")
-        print(error_message)
+            logger.error(f"Error sending error to WebSocket during general exception: {ws_send_error}")
+        logger.error(error_message)
     finally:
         if sender_task and not sender_task.done():
             sender_task.cancel()
             try:
                 await sender_task
             except asyncio.CancelledError:
-                print("Sender task cancelled.")
+                logger.info("Sender task cancelled.")
             except Exception as e_cancel:
-                print(f"Error during sender_task cancellation: {e_cancel}")
+                logger.error(f"Error during sender_task cancellation: {e_cancel}")
         if websocket.client_state == WebSocketState.CONNECTED:
             try:
                 await websocket.close()
             except RuntimeError as close_err:
-                print(f"WebSocket close error (already closed?): {close_err}")
-        print(f"WebSocket connection closed for {websocket.client}")
+                logger.warning(f"WebSocket close error (already closed?): {close_err}")
+        logger.info(f"WebSocket connection closed for {websocket.client}")
 
 
 # add middleware which calculates time of the request processing
