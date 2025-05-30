@@ -199,6 +199,9 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
             total_files += 1
     def process_file(path: Path):
         nonlocal file_count, total_files
+        if not path.exists():
+            logger.warning(f"File disappeared before processing: {path}")
+            return
         digest_lines.append(f"\n## {path.relative_to(repo_path)}\n")
         try:
             for chunk in read_file_in_chunks(path):
