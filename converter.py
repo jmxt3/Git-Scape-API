@@ -182,9 +182,22 @@ def print_tree(repo_path: str) -> list[str]:
 def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=None) -> str:
     """
     Generate a Markdown digest of the repository, reading large files in chunks.
+    Sends progress updates in the required JSON format if progress_callback is provided.
     """
     digest_lines = [f"# Repository Digest for {repo_url}\n"]
+    file_count = 0
+    total_files = 0
+    # Count total files for percentage calculation
+    for root, dirs, files in os.walk(repo_path):
+        for file in files:
+            path = Path(root) / file
+            if path.suffix.lower() in IGNORED_FILES or path.name in IGNORED_FILES:
+                continue
+            if not is_text_file(path):
+                continue
+            total_files += 1
     def process_file(path: Path):
+        nonlocal file_count, total_files
         digest_lines.append(f"\n## {path.relative_to(repo_path)}\n")
         try:
             for chunk in read_file_in_chunks(path):
@@ -194,8 +207,11 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
                     digest_lines.append("[Error decoding chunk]\n")
         except Exception as e:
             digest_lines.append(f"[Error reading file: {e}]\n")
-        if progress_callback:
-            progress_callback(path)
+        file_count += 1
+        if progress_callback and total_files > 0:
+            percentage = int((file_count / total_files) * 90) + 10  # 10-100%
+            message = f"Currently processing {path.name}..."
+            progress_callback(message, percentage)
     trace_repo(repo_path, file_callback=process_file)
     gc.collect()
     return "".join(digest_lines)

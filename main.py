@@ -97,7 +97,6 @@ async def websocket_converter(
         with tempfile.TemporaryDirectory() as tmpdir:
             clone_path = os.path.join(tmpdir, "repo")
             await websocket.send_text(json.dumps({"type": "progress", "message": "Starting repository clone...", "percentage": 0}))
-            # Call clone_repository as a regular function (not iterable)
             converter.clone_repository(repo_url, clone_path, github_token=github_token)
             await websocket.send_text(json.dumps({"type": "progress", "message": "Repository cloned. Starting digest generation...", "percentage": 10}))
 
@@ -128,12 +127,19 @@ async def websocket_converter(
 
             sender_task = asyncio.create_task(queue_to_websocket_sender())
 
+            def progress_callback(path):
+                # Calculate percentage based on file count or size if needed
+                # For now, just send a generic message
+                message = f"Processing {path.name}..."
+                percentage = 50  # Placeholder, you can improve this logic
+                sync_progress_callback(message, percentage)
+
             markdown_digest = await loop.run_in_executor(
                 None, # Uses default ThreadPoolExecutor
                 converter.generate_markdown_digest,
                 repo_url,
                 clone_path,
-                sync_progress_callback
+                progress_callback
             )
 
             await progress_queue.put(None)
