@@ -44,13 +44,13 @@ def rate_limit_handler(request, exc):
 
 @app.get("/")
 @limiter.limit("10/minute")
-def read_root():
+def read_root(request: Request):
     """Root endpoint providing a welcome message."""
     return {"message": "GitScape"}
 
 @app.get("/converter")
 @limiter.limit("5/minute")
-def get_digest(
+def get_digest(request: Request,
     repo_url: str = Query(..., description="Git repository URL to analyze"),
     github_token: str = Query(None, description="GitHub Personal Access Token for private repos or increased rate limits")
     ):
