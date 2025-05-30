@@ -127,11 +127,7 @@ async def websocket_converter(
 
             sender_task = asyncio.create_task(queue_to_websocket_sender())
 
-            def progress_callback(path):
-                # Calculate percentage based on file count or size if needed
-                # For now, just send a generic message
-                message = f"Processing {path.name}..."
-                percentage = 50  # Placeholder, you can improve this logic
+            def progress_callback(message, percentage):
                 sync_progress_callback(message, percentage)
 
             markdown_digest = await loop.run_in_executor(
