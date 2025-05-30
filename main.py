@@ -12,6 +12,7 @@ import uvicorn
 import converter # Assuming converter.py is in the same directory or accessible via PYTHONPATH
 import asyncio # Required for WebSocket and async operations
 import urllib.parse # For decoding URL-encoded parameters
+import json
 from app.api import create_app
 from fastapi import Request, HTTPException, Query, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
@@ -55,7 +56,7 @@ async def websocket_converter(
 ):
     """
     WebSocket endpoint to clone a Git repository and generate a Markdown digest,
-    streaming progress updates to the client.
+    streaming progress updates to the client as JSON with percentage.
     """
     await websocket.accept()
     loop = asyncio.get_event_loop() # Get event loop for run_coroutine_threadsafe
@@ -65,39 +66,33 @@ async def websocket_converter(
         repo_url = urllib.parse.unquote(repo_url)  # Decode URL-encoded repo_url
         with tempfile.TemporaryDirectory() as tmpdir:
             clone_path = os.path.join(tmpdir, "repo")
-            await websocket.send_text("progress: Starting repository clone...")
-            # Stream clone progress
+            await websocket.send_text(json.dumps({"type": "progress", "message": "Starting repository clone...", "percentage": 0}))
+            # Stream clone progress (still as text, for now)
             for progress_update in converter.clone_repository(repo_url, clone_path, github_token=github_token):
-                await websocket.send_text(str(progress_update))
-                await asyncio.sleep(0.01) # Small sleep to allow other tasks, and prevent overwhelming the client
+                await websocket.send_text(json.dumps({"type": "progress", "message": str(progress_update), "percentage": 5}))
+                await asyncio.sleep(0.01)
 
-            await websocket.send_text("progress: Repository cloned. Starting digest generation...")
+            await websocket.send_text(json.dumps({"type": "progress", "message": "Repository cloned. Starting digest generation...", "percentage": 10}))
 
             progress_queue = asyncio.Queue()
 
-            def sync_progress_callback(message: str):
-                """Callback to put messages onto the asyncio queue from a synchronous thread."""
+            def sync_progress_callback(message: str, percentage: int):
                 try:
-                    asyncio.run_coroutine_threadsafe(progress_queue.put(message), loop).result()
+                    asyncio.run_coroutine_threadsafe(progress_queue.put({"type": "progress", "message": message, "percentage": percentage}), loop).result()
                 except Exception as e:
-                    # Log error if putting to queue fails (e.g., loop closed)
                     print(f"Error in sync_progress_callback putting to queue: {e}")
 
-
-            # Task to read from queue and send to WebSocket
             async def queue_to_websocket_sender():
-                """Reads messages from progress_queue and sends them over WebSocket."""
                 while True:
-                    message = await progress_queue.get()
-                    if message is None: # Sentinel to stop
+                    item = await progress_queue.get()
+                    if item is None:
                         progress_queue.task_done()
                         break
                     try:
-                        await websocket.send_text(str(message))
+                        await websocket.send_text(json.dumps(item))
                     except WebSocketDisconnect:
                         print("WebSocket disconnected during send from queue.")
-                        progress_queue.task_done() # Ensure task_done is called
-                        # Potentially re-raise or handle to stop further processing
+                        progress_queue.task_done()
                         break
                     except Exception as e:
                         print(f"Error sending message from queue to websocket: {e}")
@@ -114,27 +109,24 @@ async def websocket_converter(
                 sync_progress_callback
             )
 
-            # Signal the sender to stop and wait for it
-            await progress_queue.put(None) # Send sentinel
-            await progress_queue.join()    # Wait for all queue items to be processed
-            await sender_task              # Ensure sender task itself has completed
+            await progress_queue.put(None)
+            await progress_queue.join()
+            await sender_task
 
-            await websocket.send_text(f"digest_complete:{markdown_digest}")
+            await websocket.send_text(json.dumps({"type": "digest_complete", "digest": markdown_digest, "percentage": 100}))
 
     except WebSocketDisconnect:
         print(f"Client {websocket.client} disconnected")
     except Exception as e:
-        error_message = f"error: An unexpected error occurred: {str(e)}"
+        error_message = f"An unexpected error occurred: {str(e)}"
         try:
             if websocket.client_state == websocket.client_state.CONNECTED:
-                 await websocket.send_text(error_message)
+                await websocket.send_text(json.dumps({"type": "error", "message": error_message, "percentage": 100}))
         except Exception as ws_send_error:
             print(f"Error sending error to WebSocket during general exception: {ws_send_error}")
-        print(error_message) # Log to server console as well
+        print(error_message)
     finally:
-        # Ensure sender_task is cancelled if it's still running and an error occurred
-        # before it received the None sentinel.
-        if sender_task and not sender_task.done(): # Check if sender_task is not None
+        if sender_task and not sender_task.done():
             sender_task.cancel()
             try:
                 await sender_task
@@ -142,8 +134,6 @@ async def websocket_converter(
                 print("Sender task cancelled.")
             except Exception as e_cancel:
                 print(f"Error during sender_task cancellation: {e_cancel}")
-
-        # Only attempt to close if still connected
         if websocket.client_state == WebSocketState.CONNECTED:
             try:
                 await websocket.close()

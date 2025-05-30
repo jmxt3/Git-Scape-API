@@ -274,25 +274,25 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
     Generate a Markdown digest for the given repository.
     Includes a directory tree and content of text files.
     Uses progress_callback to report progress during generation.
-    Now reports progress as a percentage (0-100%) for each step and per file, but only the message is sent to the callback (no percentage in the message).
+    Now reports progress as a percentage (0-100%) for each step and per file, sending JSON-serializable dicts.
     """
     if progress_callback is None:
-        progress_callback = lambda x: None # No-op if no callback
+        progress_callback = lambda msg, pct: None # No-op if no callback
 
     md_parts = []
-    progress_callback("Starting Markdown digest generation.")
+    progress_callback("Starting Markdown digest generation.", 0)
     md_parts.append(f"# Codebase Digest for {repo_url}\n")
 
-    progress_callback("Generating directory tree...")
+    progress_callback("Generating directory tree...", 10)
     md_parts.append("## Directory Tree\n")
     md_parts.append("```")
     tree_lines = print_tree(repo_path)
     for line in tree_lines:
         md_parts.append(line)
     md_parts.append("```\n")
-    progress_callback("Directory tree generated.")
+    progress_callback("Directory tree generated.", 20)
 
-    progress_callback("Digesting files for content...")
+    progress_callback("Digesting files for content...", 30)
     md_parts.append("## Files and Content\n")
 
     # Gather all files first for progress calculation
@@ -313,7 +313,7 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
                 continue
     total_files = len(all_files)
     if total_files == 0:
-        progress_callback("No files to process.")
+        progress_callback("No files to process.", 90)
     else:
         for idx, path in enumerate(all_files):
             rel_path = os.path.relpath(path, repo_path)
@@ -325,11 +325,11 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
                 md_parts.append(f"```{ext}\n{content}\n```\n")
             except Exception:
                 continue
-            # Only send a generic progress message, not the percentage
-            progress_callback(f"Digesting {idx+1}/{total_files} files. Yummy 😋...")
+            percent = 30 + int((idx + 1) / total_files * 60)
+            progress_callback(f"Digesting {idx+1}/{total_files} files...", percent)
 
-    progress_callback("File content processing complete.")
-    progress_callback("Markdown digest generation complete.")
+    progress_callback("File content processing complete.", 95)
+    progress_callback("Markdown digest generation complete.", 100)
     return "\n".join(md_parts)
 
 # If run as script, keep the CLI for backward compatibility
