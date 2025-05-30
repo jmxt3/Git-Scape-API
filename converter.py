@@ -225,7 +225,7 @@ def is_text_file(path: Path) -> bool:
 
 def trace_repo(repo_path: str):
     """
-    Go through the repository, yielding progress messages and file content.
+    Go through the repository, yielding file content only (no per-file progress messages).
     Skips ignored directories, ignored files, large files, and binary files.
     """
     all_files = []
@@ -237,27 +237,20 @@ def trace_repo(repo_path: str):
             path = Path(root) / file
             try:
                 if path.stat().st_size > MAX_FILE_SIZE:
-                    yield f"progress: Skipping large file {os.path.relpath(path, repo_path)}"
                     continue
                 if not is_text_file(path):
-                    yield f"progress: Skipping binary file {os.path.relpath(path, repo_path)}"
                     continue
                 all_files.append(path)
-            except FileNotFoundError: # Handle cases where file might disappear during walk
-                yield f"progress: File not found during walk: {os.path.relpath(path, repo_path)}"
+            except FileNotFoundError:
                 continue
 
-
-    total_files = len(all_files)
-    for i, path in enumerate(all_files):
+    for path in all_files:
         rel_path = os.path.relpath(path, repo_path)
-        yield f"progress: Processing file {i+1} of {total_files}: {rel_path}"
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
             yield {"type": "file_content", "path": rel_path, "content": content}
         except Exception as e:
-            yield f"progress: Error reading file {rel_path}: {e}"
             continue
 
 def print_tree(repo_path: str) -> list[str]:
@@ -302,17 +295,12 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
     md_parts.append("## Files and Content\n")
 
     for item in trace_repo(repo_path):
-        if isinstance(item, str) and (item.startswith("progress:") or item.startswith("clone_error:")):
-            progress_callback(item)
-        elif isinstance(item, dict) and item.get("type") == "file_content":
+        if isinstance(item, dict) and item.get("type") == "file_content":
             rel_path = item["path"]
             content = item["content"]
             ext = Path(rel_path).suffix.lstrip(".")
             md_parts.append(f"### {rel_path}\n")
             md_parts.append(f"```{ext}\n{content}\n```\n")
-            # This specific callback might be too verbose for many files,
-            # consider if walk_repo's "Processing file X of Y" is sufficient.
-            # progress_callback(f"progress: Appended content for {rel_path} to digest")
     progress_callback("progress: File content processing complete.")
     progress_callback("progress: Markdown digest generation complete.")
     return "\n".join(md_parts)
