@@ -11,9 +11,18 @@ import os
 import sys
 import tempfile
 import subprocess
+import gc
+import logging
+
 from pathlib import Path
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+MAX_TOTAL_REPO_SIZE = 50 * 1024 * 1024  # 50 MB per repo (adjust as needed)
 MAX_FILE_SIZE = 100 * 1024  # 100 KB per file
+MAX_FILE_COUNT = 2000  # Max number of files to process per repo
+
 IGNORED_DIRS = {".git", "__pycache__"}
 IGNORED_FILES = {
     ".DS_Store",
@@ -24,7 +33,6 @@ IGNORED_FILES = {
 }
 
 TEXT_EXTS = {
-    # Programming & Scripting Languages
     ".py",          # Python
     ".js",          # JavaScript
     ".ts",          # TypeScript
@@ -40,11 +48,9 @@ TEXT_EXTS = {
     ".fsi",         # F# Interface
     ".swift",       # Swift
     ".kt",          # Kotlin
-    ".kts",         # Kotlin Script
     ".rb",          # Ruby
     ".php",         # PHP
     ".pl",          # Perl
-    ".pm",          # Perl Module
     ".lua",         # Lua
     ".scala",       # Scala
     ".groovy",      # Groovy
@@ -53,28 +59,15 @@ TEXT_EXTS = {
     ".sh",          # Shell Script (generic)
     ".bash",        # Bash Script
     ".zsh",         # Zsh Script
-    ".fish",        # Fish Script
     ".bat",         # Windows Batch Script
-    ".cmd",         # Windows Command Script
     ".ps1",         # PowerShell Script
     ".psm1",        # PowerShell Module
-    ".psd1",        # PowerShell Data File
     ".tcl",         # TCL
     ".m",           # Objective-C / MATLAB script
     ".elm",         # Elm
     ".ex",          # Elixir
     ".exs",         # Elixir Script
-    ".cr",          # Crystal
-    ".nim",         # Nim
-    ".v",           # Verilog
-    ".sv",          # SystemVerilog
-    ".vhdl",        # VHDL
-    ".gd",          # GDScript (Godot Engine)
     ".clj",         # Clojure
-    ".cljs",        # ClojureScript
-    ".cljc",        # Clojure/ClojureScript
-
-    # Web Development & Templating
     ".html",        # HTML
     ".htm",         # HTML (alternative)
     ".css",         # CSS
@@ -84,98 +77,25 @@ TEXT_EXTS = {
     ".vue",         # Vue.js Single File Components
     ".jsx",         # JavaScript XML (React)
     ".tsx",         # TypeScript XML (React)
-    ".svelte",      # Svelte components
-    ".ejs",         # Embedded JavaScript templates
-    ".erb",         # Embedded Ruby (Rails templates)
     ".hbs",         # Handlebars templates
     ".handlebars",  # Handlebars templates (alternative)
     ".mustache",    # Mustache templates
     ".jinja",       # Jinja templates
-    ".j2",          # Jinja2 templates (alternative)
-    ".twig",        # Twig templates (PHP)
-    # Markup & Documentation
     ".md",          # Markdown
     ".markdown",    # Markdown (alternative)
-    ".rst",         # reStructuredText
-    ".adoc",        # AsciiDoc
-    ".asciidoc",    # AsciiDoc (alternative)
-    ".tex",         # LaTeX
-    ".bib",         # BibTeX (LaTeX bibliography)
-    ".org",         # Emacs Org Mode
-    # Data Serialization & Configuration
     ".txt",         # Plain Text
     ".json",        # JSON
-    ".jsonc",       # JSON with Comments
-    ".json5",       # JSON5
     ".yml",         # YAML
     ".yaml",        # YAML (alternative)
     ".xml",         # XML
-    ".xsd",         # XML Schema Definition
-    ".xsl",         # XSLT Stylesheet
     ".toml",        # TOML
-    ".ini",         # INI
     ".cfg",         # Configuration
     ".conf",        # Configuration (generic)
     ".config",      # Configuration (alternative)
-    ".properties",  # Java Properties
-    ".env",         # Environment Variables (often .env.example, etc.)
     ".graphql",     # GraphQL Schema/Query
-    ".gql",         # GraphQL (alternative)
-    ".hcl",         # HashiCorp Configuration Language
-    ".tf",          # Terraform (HCL)
-    ".tfvars",      # Terraform Variables (HCL)
-    ".csv",         # Comma-Separated Values
-    ".tsv",         # Tab-Separated Values
-    ".log",         # Log files (can be large but are text)
-
-    # Build Systems & Project Files
-    ".Makefile",    # Makefile (or often just 'Makefile' with no ext)
-    ".mk",          # Makefile include
-    ".cmake",       # CMake
-    # "CMakeLists.txt" is a specific filename, covered by .txt but important
     ".gradle",      # Gradle build script (Groovy)
-    ".gradle.kts",  # Gradle build script (Kotlin)
-    ".pom",         # Maven Project Object Model (implicitly .xml)
-    ".csproj",      # C# Project File (XML)
-    ".vbproj",      # VB.NET Project File (XML)
-    ".fsproj",      # F# Project File (XML)
-    ".sln",         # Visual Studio Solution
-    ".xcconfig",    # Xcode Configuration File
-    # Version Control & Development Environment
-    ".gitignore",   # Git Ignore file
-    ".gitattributes",# Git Attributes file
-    ".gitmodules",  # Git Modules file
-    ".editorconfig",# EditorConfig
-    ".prettierrc",  # Prettier configuration (often JSON, YAML, or JS module)
-    ".eslintrc",    # ESLint configuration (often JSON, YAML, or JS module)
-    ".babelrc",     # Babel configuration (often JSON)
-    ".stylelintrc", # Stylelint configuration (often JSON, YAML)
     ".dockerfile",  # Dockerfile (or often just 'Dockerfile' with no ext)
-    ".vagrantfile", # Vagrantfile (Ruby syntax)
-    # Other Text-Based Files
     ".sql",         # SQL Queries
-    ".ddl",         # Data Definition Language (SQL)
-    ".patch",       # Patch file
-    ".diff",        # Diff file
-    ".sub",         # Subtitles (e.g., .srt, .sub - .srt is very common & text)
-    ".srt",         # SubRip Subtitle file
-    ".vtt",         # WebVTT Subtitle file
-    ".cfg",         # Generic config (already listed, but very general)
-    ".desktop",     # Linux Desktop Entry files (INI-like)
-    ".service",     # Systemd service files (INI-like)
-    ".conf",        # Generic config (already listed)
-    ".list",        # Plain text lists
-    ".theme",       # Theme files (often XML or INI-like)
-    ".plantuml",    # PlantUML diagram definition
-    ".puml",        # PlantUML (alternative)
-    ".iuml",        # PlantUML (alternative)
-    ".dot",         # Graphviz DOT language
-    ".gv",          # Graphviz (alternative)
-    ".http",        # HTTP requests (for testing/docs)
-    ".rest",        # REST API requests (for testing/docs)
-    ".proto",       # Protocol Buffer definition files
-    ".asc",         # PGP armored files (ASCII representation of binary data)
-    ".pem"          # Privacy Enhanced Mail (certificates, keys - ASCII)
 }
 
 def clone_repository(repo_url, clone_path, github_token=None):
@@ -223,12 +143,10 @@ def is_text_file(path: Path) -> bool:
     ext = path.suffix.lower()
     return ext in TEXT_EXTS
 
-def trace_repo(repo_path: str):
-    """
-    Go through the repository, yielding file content only (no per-file progress messages).
-    Skips ignored directories, ignored files, large files, and binary files.
-    """
-    all_files = []
+def get_total_repo_size(repo_path: str) -> int:
+    """Calculate the total size of all files in the repo, skipping ignored files/dirs."""
+    total = 0
+    count = 0
     for root, dirs, files in os.walk(repo_path):
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
         for file in files:
@@ -236,19 +154,57 @@ def trace_repo(repo_path: str):
                 continue
             path = Path(root) / file
             try:
-                if path.stat().st_size > MAX_FILE_SIZE:
+                if not is_text_file(path):
+                    continue
+                size = path.stat().st_size
+                if size > MAX_FILE_SIZE:
+                    continue
+                total += size
+                count += 1
+                if total > MAX_TOTAL_REPO_SIZE or count > MAX_FILE_COUNT:
+                    return total
+            except FileNotFoundError:
+                continue
+    return total
+
+def trace_repo(repo_path: str):
+    """
+    Go through the repository, yielding file content only (no per-file progress messages).
+    Skips ignored directories, ignored files, large files, and binary files.
+    Limits total repo size and file count.
+    """
+    all_files = []
+    total_size = 0
+    for root, dirs, files in os.walk(repo_path):
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        for file in files:
+            if file in IGNORED_FILES:
+                continue
+            path = Path(root) / file
+            try:
+                size = path.stat().st_size
+                if size > MAX_FILE_SIZE:
                     continue
                 if not is_text_file(path):
                     continue
+                if total_size + size > MAX_TOTAL_REPO_SIZE or len(all_files) >= MAX_FILE_COUNT:
+                    break
                 all_files.append(path)
+                total_size += size
             except FileNotFoundError:
                 continue
+        if total_size > MAX_TOTAL_REPO_SIZE or len(all_files) >= MAX_FILE_COUNT:
+            break
 
     for path in all_files:
         rel_path = os.path.relpath(path, repo_path)
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+                # Stream file content line by line to avoid large memory usage
+                content_lines = []
+                for line in f:
+                    content_lines.append(line)
+                content = ''.join(content_lines)
             yield {"type": "file_content", "path": rel_path, "content": content}
         except Exception as e:
             continue
@@ -275,9 +231,16 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
     Includes a directory tree and content of text files.
     Uses progress_callback to report progress during generation.
     Now reports progress as a percentage (0-100%) for each step and per file, sending JSON-serializable dicts.
+    Enforces repo/file size and file count limits. Calls gc.collect() after processing.
     """
     if progress_callback is None:
         progress_callback = lambda msg, pct: None # No-op if no callback
+
+    # Check repo size and file count before processing
+    total_size = get_total_repo_size(repo_path)
+    if total_size > MAX_TOTAL_REPO_SIZE:
+        progress_callback(f"Repository too large (>{MAX_TOTAL_REPO_SIZE//1024//1024}MB). Aborting.", 100)
+        return f"Repository too large (>{MAX_TOTAL_REPO_SIZE//1024//1024}MB). Digest not generated."
 
     md_parts = []
     progress_callback("Starting Markdown digest generation.", 0)
@@ -295,8 +258,9 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
     progress_callback("Digesting files for content...", 30)
     md_parts.append("## Files and Content\n")
 
-    # Gather all files first for progress calculation
+    # Gather all files first for progress calculation, with limits
     all_files = []
+    total_size = 0
     for root, dirs, files in os.walk(repo_path):
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
         for file in files:
@@ -304,13 +268,19 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
                 continue
             path = Path(root) / file
             try:
-                if path.stat().st_size > MAX_FILE_SIZE:
+                size = path.stat().st_size
+                if size > MAX_FILE_SIZE:
                     continue
                 if not is_text_file(path):
                     continue
+                if total_size + size > MAX_TOTAL_REPO_SIZE or len(all_files) >= MAX_FILE_COUNT:
+                    break
                 all_files.append(path)
+                total_size += size
             except FileNotFoundError:
                 continue
+        if total_size > MAX_TOTAL_REPO_SIZE or len(all_files) >= MAX_FILE_COUNT:
+            break
     total_files = len(all_files)
     if total_files == 0:
         progress_callback("No files to process.", 90)
@@ -319,7 +289,11 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
             rel_path = os.path.relpath(path, repo_path)
             try:
                 with open(path, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
+                    # Stream file content line by line
+                    content_lines = []
+                    for line in f:
+                        content_lines.append(line)
+                    content = ''.join(content_lines)
                 ext = Path(rel_path).suffix.lstrip(".")
                 md_parts.append(f"### {rel_path}\n")
                 md_parts.append(f"```{ext}\n{content}\n```\n")
@@ -330,18 +304,21 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
 
     progress_callback("File content processing complete.", 95)
     progress_callback("Markdown digest generation complete.", 100)
+    # Explicitly free memory
+    del all_files, content_lines, content
+    gc.collect()
     return "\n".join(md_parts)
 
 # If run as script, keep the CLI for backward compatibility
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python converter.py <repo_path_or_git_url>")
+        logger.error("Usage: python converter.py <repo_path_or_git_url>")
         sys.exit(1)
     src = sys.argv[1]
 
     # Define a simple progress printer for CLI
     def cli_progress_printer(message):
-        print(message, file=sys.stderr)
+        logger.info(message)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Construct clone_path within tmpdir
@@ -359,7 +336,7 @@ if __name__ == "__main__":
                 repo_to_digest = actual_clone_path
                 repo_url_for_digest = src # Use original src URL for the digest title
             except RuntimeError as e:
-                cli_progress_printer(f"Failed to clone repository: {e}")
+                logger.error(f"Failed to clone repository: {e}")
                 sys.exit(1)
         else:
             # If src is a local path, use it directly
@@ -368,4 +345,4 @@ if __name__ == "__main__":
 
         cli_progress_printer(f"Generating digest for {repo_to_digest}...")
         final_digest = generate_markdown_digest(repo_url_for_digest, repo_to_digest, progress_callback=cli_progress_printer)
-        print(final_digest)
+        logger.info(final_digest)
