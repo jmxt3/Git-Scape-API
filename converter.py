@@ -195,22 +195,54 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
     digest_lines = [f"# Repository Digest for {repo_url}\n"]
     file_count = 0
     total_files = 0
+
+    # List of common documentation files to attempt to include at the beginning
+    common_files = [
+        "README.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md",
+        "SECURITY.md", "LICENSE", "LICENSE.md", "LICENSE.txt"
+    ]
+
+    # Process common files first, if they exist
+    for common_file in common_files:
+        file_path = Path(repo_path) / common_file
+        if file_path.exists() and file_path.is_file():
+            try:
+                rel_path = file_path.relative_to(repo_path)
+                digest_lines.append(f"\n## {rel_path}\n")
+                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                    digest_lines.append(f.read())
+                if progress_callback:
+                    progress_callback(f"Processed {common_file}", 5)
+            except Exception as e:
+                logger.warning(f"Could not process common file {common_file}: {e}")
+
     # Count total files for percentage calculation
     for root, dirs, files in os.walk(repo_path):
+        # Filter ignored dirs
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
         for file in files:
             path = Path(root) / file
             if path.suffix.lower() in IGNORED_FILES or path.name in IGNORED_FILES:
                 continue
             if not is_text_file(path):
                 continue
+            # Skip common files that we already processed
+            if path.name in common_files:
+                continue
             total_files += 1
+
     def process_file(path: Path):
         nonlocal file_count, total_files
+        # Skip already processed common files
+        if path.name in common_files:
+            return
+
         if not path.exists():
             logger.warning(f"File disappeared before processing: {path}")
             return
-        digest_lines.append(f"\n## {path.relative_to(repo_path)}\n")
+
         try:
+            digest_lines.append(f"\n## {path.relative_to(repo_path)}\n")
             for chunk in read_file_in_chunks(path):
                 try:
                     digest_lines.append(chunk.decode("utf-8", errors="replace"))
@@ -220,11 +252,13 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
         except Exception as e:
             logger.warning(f"Skipping file due to error during processing: {path} ({e})")
             return
+
         file_count += 1
         if progress_callback and total_files > 0:
             percentage = int((file_count / total_files) * 90) + 10  # 10-100%
             message = f"Currently processing {path.name}..."
             progress_callback(message, percentage)
+
     trace_repo(repo_path, file_callback=process_file)
     gc.collect()
     return "".join(digest_lines)
