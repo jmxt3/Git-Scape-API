@@ -140,7 +140,8 @@ def read_file_in_chunks(path: Path, chunk_size: int = CHUNK_SIZE):
 
 def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] = None):
     """
-    Walk the repo, process files in a memory-efficient way, and call file_callback for each file.
+    Walk the repo, process files in a memory-efficient way, and call file_callback(path) for each file.
+    file_callback must accept exactly one argument: the Path of the file.
     """
     stats = {"total_files": 0, "total_size": 0}
     for root, dirs, files in os.walk(repo_path):
@@ -162,7 +163,7 @@ def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] =
             stats["total_files"] += 1
             stats["total_size"] += file_size
             if file_callback:
-                file_callback(path)
+                file_callback(path)  # Always called with one argument
             gc.collect()  # Free memory after each file
 
 def print_tree(repo_path: str) -> list[str]:
