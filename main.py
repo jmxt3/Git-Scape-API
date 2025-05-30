@@ -17,8 +17,6 @@ import logging
 from app.api import create_app
 from fastapi import Request, HTTPException, Query, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
-from fastapi.responses import FileResponse, HTMLResponse
-# slowapi imports
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -43,19 +41,11 @@ def rate_limit_handler(request, exc):
         content={"detail": "Rate limit exceeded. Please try again later."}
     )
 
-@app.head("/")
-async def head_root() -> HTMLResponse:
-    """
-    Respond to HTTP HEAD requests for the root URL.
-
-    Mirrors the headers and status code of the index page.
-
-    Returns
-    -------
-    HTMLResponse
-        An empty HTML response with appropriate headers.
-    """
-    return HTMLResponse(content=None, headers={"content-type": "text/html; charset=utf-8"})
+@app.get("/")
+@limiter.limit("10/minute")
+def read_root(request: Request):
+    """Root endpoint providing a welcome message."""
+    return {"message": "GitScape"}
 
 @app.get("/converter")
 @limiter.limit("5/minute")
