@@ -102,7 +102,10 @@ def clone_repository(repo_url, clone_path, github_token=None):
     """Clone the repository from repo_url into clone_path.
     Supports private repositories using a GitHub Personal Access Token.
     Yields progress messages during the cloning process.
+    Enhanced: Uses --single-branch and --filter=blob:none to minimize resource usage.
+    Handles SIGKILL and similar errors for user-friendly reporting.
     """
+    import signal
     if github_token is None:
         github_token = os.getenv("GITHUB_TOKEN")
     if github_token and repo_url.startswith("https://github.com/"):
@@ -111,30 +114,39 @@ def clone_repository(repo_url, clone_path, github_token=None):
             "https://github.com/", f"https://{github_token}:x-oauth-basic@github.com/"
         )
     try:
-        # Use Popen to stream output
-        process = subprocess.Popen(["git", "clone", "--depth", "1", "--progress", repo_url, clone_path],
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        # Use Popen to stream output, add --single-branch and --filter=blob:none
+        process = subprocess.Popen([
+            "git", "clone", "--depth", "1", "--single-branch", "--filter=blob:none", "--progress", repo_url, clone_path
+        ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         if process.stdout:
             for line in iter(process.stdout.readline, ''):
                 yield f"Clone {line.strip()}"
             process.stdout.close()
         else:
-            yield "clone: Failed to capture stdout from git clone process." # Or handle as an error
+            yield "clone: Failed to capture stdout from git clone process."
 
         return_code = process.wait()
         if return_code:
+            # Check if killed by signal (e.g., SIGKILL)
+            if process.returncode < 0:
+                sig = -process.returncode
+                if sig == signal.SIGKILL:
+                    yield "clone_error: Clone process was killed (SIGKILL). This usually means the repository is too large or the server ran out of memory. Try a smaller repository."
+                    raise RuntimeError("Clone process killed (SIGKILL): repository too large or server out of memory.")
+                else:
+                    yield f"clone_error: Clone process was killed by signal {sig}."
+                    raise RuntimeError(f"Clone process killed by signal {sig}.")
             # Attempt to get more error details if stderr was redirected to stdout
             # This part is tricky as stdout is already consumed or closed.
             # For simplicity, we'll stick to the original error reporting.
             raise subprocess.CalledProcessError(return_code, process.args)
     except subprocess.CalledProcessError as e:
-        # Consider yielding an error message here too, or ensure the calling code handles it
         yield f"clone_error: Error cloning repository: {e}"
         raise RuntimeError(f"Error cloning repository: {e}")
-    except FileNotFoundError: # Specifically catch if git command is not found
+    except FileNotFoundError:
         yield "clone_error: Git command not found. Please ensure Git is installed and in your PATH."
         raise RuntimeError("Git command not found. Please ensure Git is installed and in your PATH.")
-    except Exception as e: # Catch other potential errors
+    except Exception as e:
         yield f"clone_error: An unexpected error occurred during cloning: {e}"
         raise RuntimeError(f"An unexpected error occurred during cloning: {e}")
 
