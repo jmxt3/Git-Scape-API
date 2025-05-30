@@ -292,7 +292,7 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
     md_parts.append("```\n")
     progress_callback("Directory tree generated.")
 
-    progress_callback("Processing files for content...")
+    progress_callback("Digesting files for content...")
     md_parts.append("## Files and Content\n")
 
     # Gather all files first for progress calculation
@@ -326,7 +326,7 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
             except Exception:
                 continue
             # Only send a generic progress message, not the percentage
-            progress_callback(f"Processed {idx+1}/{total_files} files.")
+            progress_callback(f"Digesting {idx+1}/{total_files} files. Yummy 😋...")
 
     progress_callback("File content processing complete.")
     progress_callback("Markdown digest generation complete.")
