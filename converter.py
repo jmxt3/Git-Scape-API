@@ -141,8 +141,8 @@ def read_file_in_chunks(path: Path, chunk_size: int = CHUNK_SIZE):
                 if not chunk:
                     break
                 yield chunk
-    except FileNotFoundError:
-        logger.warning(f"File not found during chunked read: {path}")
+    except Exception as e:
+        logger.warning(f"Skipping file due to error during chunked read: {path} ({e})")
         return
 
 def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] = None):
@@ -215,9 +215,11 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
                 try:
                     digest_lines.append(chunk.decode("utf-8", errors="replace"))
                 except Exception:
-                    digest_lines.append("[Error decoding chunk]\n")
+                    logger.warning(f"Skipping chunk in file {path} due to decode error.")
+                    continue
         except Exception as e:
-            digest_lines.append(f"[Error reading file: {e}]\n")
+            logger.warning(f"Skipping file due to error during processing: {path} ({e})")
+            return
         file_count += 1
         if progress_callback and total_files > 0:
             percentage = int((file_count / total_files) * 90) + 10  # 10-100%
