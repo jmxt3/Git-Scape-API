@@ -208,8 +208,8 @@ if __name__ == "__main__":
         repo_url = sys.argv[1]
         clone_path = sys.argv[2]
         clone_repository(repo_url, clone_path)
-        print("\n".join(print_tree(clone_path)))
-        print("\n--- Markdown Digest ---\n")
-        print(generate_markdown_digest(repo_url, clone_path))
+        logger.info("\n".join(print_tree(clone_path)))
+        logger.info("\n--- Markdown Digest ---\n")
+        logger.info(generate_markdown_digest(repo_url, clone_path))
     else:
-        print("Usage: python converter.py <repo_url> <clone_path>")
+        logger.info("Usage: python converter.py <repo_url> <clone_path>")
