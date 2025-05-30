@@ -213,6 +213,8 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
                     digest_lines.append(f.read())
                 if progress_callback:
                     progress_callback(f"Processed {common_file}", 5)
+            except FileNotFoundError:
+                logger.warning(f"Common file {common_file} not found, skipping.")
             except Exception as e:
                 logger.warning(f"Could not process common file {common_file}: {e}")
 
