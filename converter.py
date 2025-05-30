@@ -131,12 +131,19 @@ def get_total_repo_size(repo_path: str) -> int:
     return total
 
 def read_file_in_chunks(path: Path, chunk_size: int = CHUNK_SIZE):
-    with open(path, "rb") as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
-            yield chunk
+    if not path.exists():
+        logger.warning(f"File disappeared before reading: {path}")
+        return
+    try:
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+    except FileNotFoundError:
+        logger.warning(f"File not found during chunked read: {path}")
+        return
 
 def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] = None):
     """
