@@ -196,7 +196,7 @@ def clone_repository(repo_url, clone_path, github_token=None):
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         if process.stdout:
             for line in iter(process.stdout.readline, ''):
-                yield f"clone: {line.strip()}"
+                yield f"Clone: {line.strip()}"
             process.stdout.close()
         else:
             yield "clone: Failed to capture stdout from git clone process." # Or handle as an error
