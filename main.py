@@ -15,13 +15,17 @@ import urllib.parse # For decoding URL-encoded parameters
 import json
 import logging
 from app.api import create_app
-from fastapi import Request, HTTPException, Query, WebSocket, WebSocketDisconnect
+from app.api import router as api_router
+from fastapi import Request, HTTPException, Query, WebSocket, WebSocketDisconnect, Body
 from starlette.websockets import WebSocketState
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
+from fastapi import Body
+from pydantic import BaseModel, Field
+import requests
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -171,6 +175,8 @@ async def add_process_time_header(request: Request, call_next):
     process_time = time.time() - start_time
     response.headers["X-Process-Time-Sec"] = str(process_time)
     return response
+
+app.include_router(api_router)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
