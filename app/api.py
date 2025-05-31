@@ -8,7 +8,7 @@ import time
 import logging
 import uvicorn
 
-from fastapi import FastAPI, APIRouter, Body
+from fastapi import FastAPI, APIRouter, Body, Request, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 import requests
@@ -77,3 +77,28 @@ def chat_with_gemini(
             except Exception:
                 detail = str(e.response)
         return {"error": str(e), "detail": detail}
+
+@router.get("/")
+def read_root(request: Request):
+    """Root endpoint providing a welcome message."""
+    return {"message": "GitScape"}
+
+@router.get("/converter")
+def get_digest(request: Request,
+    repo_url: str = Query(..., description="Git repository URL to analyze"),
+    github_token: str = Query(None, description="GitHub Personal Access Token for private repos or increased rate limits")
+    ):
+    """
+    HTTP endpoint to clone a Git repository and generate a Markdown digest.
+    This is a blocking operation.
+    """
+    import tempfile, os, urllib.parse, converter
+    try:
+        repo_url = urllib.parse.unquote(repo_url)  # Decode URL-encoded repo_url
+        with tempfile.TemporaryDirectory() as tmpdir:
+            clone_path = os.path.join(tmpdir, "repo")
+            converter.clone_repository(repo_url, clone_path, github_token=github_token)
+            markdown = converter.generate_markdown_digest(repo_url, clone_path)
+        return {"digest": markdown}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
