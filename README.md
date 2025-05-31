@@ -1,6 +1,88 @@
 # GitScape API
 
-This is the official API for GitScape, a tool for generating digests from any git repositories. A simple, well-structured FastAPI application designed to run on Google Cloud Run.
+[![GitScape Web](https://github.com/jmxt3/Git-Scape-Web)](https://github.com/jmxt3/Git-Scape-Web) | [https://gitscape.ai/](https://gitscape.ai/)
+
+---
+
+## Project Overview
+
+GitScape API is the official backend for [GitScape](https://gitscape.ai/), a platform for generating structured digests and summaries from any git repository. This API powers the [GitScape Web](https://github.com/jmxt3/Git-Scape-Web) frontend and is designed for extensibility, performance, and ease of deployment (notably on Google Cloud Run).
+
+- **Main repo:** https://github.com/jmxt3/Git-Scape-Web
+- **Live site:** https://gitscape.ai/
+
+## Architecture & Project Structure
+
+- `main.py` – FastAPI entrypoint, defines API and WebSocket endpoints.
+- `converter.py` – Core logic for cloning, analyzing, and digesting git repositories.
+- `app/` – Application package:
+  - `api.py` – FastAPI app factory and CORS setup.
+  - `config.py` – Environment and settings management.
+- `requirements.txt` / `pyproject.toml` – Python dependencies.
+- `Dockerfile` – Containerization for deployment.
+- `.env.example` – Example environment configuration.
+
+## API Overview
+
+- `GET /` – Health check and welcome message.
+- `GET /converter` – Clone a git repo and return a Markdown digest (blocking HTTP).
+- `WS /ws/converter` – WebSocket endpoint for real-time progress and digest streaming.
+
+See the [OpenAPI docs](http://localhost:8000/docs) when running locally for full details.
+
+## Getting Started (Development Setup)
+
+1. **Clone the repo:**
+   ```bash
+   git clone https://github.com/jmxt3/Git-Scape-API.git
+   cd Git-Scape-API
+   ```
+2. **Install Python 3.10+** and [Poetry](https://python-poetry.org/) or use `pip`:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+3. **Copy environment config:**
+   ```bash
+   cp .env.example .env
+   # Edit .env as needed
+   ```
+4. **Run the API locally:**
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   # or
+   fastapi dev
+   ```
+5. **Access docs:**
+   - Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+   - ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+## Testing
+
+*Tests are not yet included. PRs for test coverage are welcome!*
+
+## Code Style & Conventions
+
+- Follow [PEP8](https://www.python.org/dev/peps/pep-0008/) and use [black](https://black.readthedocs.io/) for formatting.
+- Use type hints and docstrings for all public functions.
+- Keep API endpoints and business logic separated (see `main.py` vs `converter.py`).
+
+## How to Contribute
+
+1. Fork this repo and create a feature branch.
+2. Make your changes with clear commit messages.
+3. Ensure your code is formatted and type-checked.
+4. Open a pull request with a clear description.
+5. For bugs or feature requests, open a [GitHub Issue](https://github.com/jmxt3/Git-Scape-API/issues).
+
+## Community & Support
+
+- Main web repo: https://github.com/jmxt3/Git-Scape-Web
+- Website: https://gitscape.ai/
+- Issues: https://github.com/jmxt3/Git-Scape-API/issues
+
+---
 
 ## Quick Commands
 
@@ -93,3 +175,23 @@ These are general steps you would follow to deploy this application to Google Cl
 * **Statelessness:** Cloud Run services should be stateless. Any persistent state should be stored in external services like Cloud SQL, Firestore, or Cloud Storage.
 * **Concurrency:** Configure concurrency settings based on your application's needs.
 * **Logging & Monitoring:** Cloud Run integrates with Cloud Logging and Cloud Monitoring. Standard output (`print` statements, logging libraries) will be captured.
+
+## 📚 Resources
+- [Gemini API Key Docs](https://ai.google.dev/gemini-api/docs/api-key)
+- [GitHub PAT Docs](https://github.com/settings/tokens/new?scopes=repo&description=GitRepoDigestAI)
+- [Git Scape AI Website](https://gitscape.ai/)
+- [Git Scape WEB (Frontend)](https://github.com/jmxt3/Git-Scape-Web)
+
+---
+
+## 📝 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## 🙏 Acknowledgements
+
+Created by [João Machete](https://github.com/jmxt3) and contributors.
+
+If you like this project, please ⭐️ the repo and share your feedback!
