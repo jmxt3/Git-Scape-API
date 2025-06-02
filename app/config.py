@@ -12,7 +12,11 @@ load_dotenv()
 
 origins = [
     "https://gitscape.ai/",  # Your production frontend
+    "https://www.gitscape.ai", # Additional production frontend
     "http://localhost:8000", # Your local development frontend (optional)
+    "http://localhost:5173", # Additional local development frontend
+    "https://gitscape.ai", # Newly added production frontend
+    "https://www.gitscape.ai" # Newly added production frontend
 ]
 
 class Settings(BaseSettings):
@@ -28,7 +32,7 @@ class Settings(BaseSettings):
     DEBUG: bool = ENVIRONMENT == "development"
 
     # CORS settings
-    CORS_ORIGINS: List[str] = origins
+    # CORS_ORIGINS: List[str] = origins
 
     class Config:
         env_file = ".env"
