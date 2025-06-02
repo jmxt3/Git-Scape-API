@@ -194,20 +194,11 @@ def create_app() -> FastAPI:
     # Configure CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=settings.CORS_ORIGINS + ["http://127.0.0.1:5173"],
         allow_credentials=True,
         allow_methods=["*"],  # Allow all methods including OPTIONS, POST, GET, etc.
         allow_headers=["*"],
+        expose_headers=["Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers"],
     )
-
-    # Add explicit middleware to handle OPTIONS requests for CORS preflight
-    @app.middleware("http")
-    async def add_cors_headers(request: Request, call_next):
-        response = await call_next(request)
-        if request.method == "OPTIONS":
-            response.headers["Access-Control-Allow-Origin"] = "*"
-            response.headers["Access-Control-Allow-Methods"] = "*"
-            response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
 
     return app
