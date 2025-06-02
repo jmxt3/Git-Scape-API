@@ -44,7 +44,10 @@ def chat_with_gemini(
         contents.append({"role": "user", "parts": [{"text": system_instruction}]})
     if history:
         for msg in history:
-            contents.append({"role": msg.get("sender", "user"), "parts": [{"text": msg.get("text", "")}]})
+            if isinstance(msg, dict):
+                contents.append({"role": msg.get("sender", "user"), "parts": [{"text": msg.get("text", "")}]})
+            elif isinstance(msg, str):
+                contents.append({"role": "user", "parts": [{"text": msg}]})
     contents.append({"role": "user", "parts": [{"text": user_message}]})
     payload = {"contents": contents}
     try:
