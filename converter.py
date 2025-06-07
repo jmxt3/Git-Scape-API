@@ -185,36 +185,59 @@ def read_file_in_chunks(path: Path, chunk_size: int = CHUNK_SIZE):
         return
 
 
+def _walk_error_handler(os_error: OSError):
+    """Handles errors during os.walk, allowing it to skip problematic directories."""
+    logger.warning(
+        f"Error accessing directory {os_error.filename} during walk: {os_error.strerror}. Skipping."
+    )
+
+
 def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] = None):
     """
     Walk the repo, process files in a memory-efficient way, and call file_callback(path) for each file.
     file_callback must accept exactly one argument: the Path of the file.
     """
     stats = {"total_files": 0, "total_size": 0}
-    for root, dirs, files in os.walk(repo_path):
+    for root, dirs, files_in_dir in os.walk(repo_path, onerror=_walk_error_handler):
         # Filter ignored dirs
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
-        for file in files:
-            path = Path(root) / file
-            if path.suffix.lower() in IGNORED_FILES or path.name in IGNORED_FILES:
-                continue
-            if not is_text_file(path):
-                continue
-            file_size = path.stat().st_size
-            if file_size > MAX_FILE_SIZE:
-                logger.info(f"Skipping large file: {path} ({file_size} bytes)")
-                continue
-            if (
-                stats["total_files"] >= MAX_FILES
-                or stats["total_size"] + file_size > MAX_TOTAL_SIZE_BYTES
-            ):
-                logger.warning("File or size limit reached, stopping traversal.")
-                return
-            stats["total_files"] += 1
-            stats["total_size"] += file_size
-            if file_callback:
-                file_callback(path)  # Always called with one argument
-            gc.collect()  # Free memory after each file
+        for file_name in files_in_dir:
+            path = Path(root) / file_name
+            try:
+                if path.suffix.lower() in IGNORED_FILES or path.name in IGNORED_FILES:
+                    continue
+                if not is_text_file(path):
+                    continue
+
+                if not path.is_file():  # Checks existence and if it's a file
+                    logger.info(f"Skipping non-file or missing entry: {path}")
+                    continue
+
+                file_size = path.stat().st_size
+                if file_size > MAX_FILE_SIZE:
+                    logger.info(f"Skipping large file: {path} ({file_size} bytes)")
+                    continue
+
+                if (
+                    stats["total_files"] >= MAX_FILES
+                    or stats["total_size"] + file_size > MAX_TOTAL_SIZE_BYTES
+                ):
+                    logger.warning(f"Repository size or file count limit reached. Stopping traversal. Files processed so far: {stats['total_files']}, size so far: {stats['total_size']}.")
+                    return # Stop all traversal
+
+                stats["total_files"] += 1
+                stats["total_size"] += file_size
+
+                if file_callback:
+                    file_callback(path)
+
+                gc.collect()
+            except FileNotFoundError:
+                logger.warning(f"File not found during trace_repo processing: {path}. Skipping this file.")
+            except OSError as oe:
+                logger.warning(f"OSError processing file {path} in trace_repo: {oe}. Skipping this file.")
+            except Exception as e:
+                logger.error(f"Unexpected error processing file {path} in trace_repo: {e}. Skipping this file.")
 
 
 def print_tree(repo_path: str) -> list[str]:
@@ -275,23 +298,38 @@ def generate_markdown_digest(
                     progress_callback(f"Processed {file_path.name}", 5)
             except FileNotFoundError:
                 logger.warning(f"Common file {file_path} not found, skipping.")
+            except OSError as oe:
+                # Catch OSError more broadly, FNF is a subclass. This helps if FNF isn't caught directly.
+                logger.warning(f"OSError when processing common file {file_path} (Error: {oe}). Skipping.")
             except Exception as e:
                 logger.warning(f"Could not process common file {file_path}: {e}")
-
+        elif common_file.lower() in repo_files: # File was in repo_files but .exists() or .is_file() failed
+            logger.warning(f"Common file '{common_file}' found in listing but failed exists/is_file check for path: {repo_files.get(common_file.lower())}")
+        else: # File not found in initial listing by iterdir
+            logger.info(f"Common file '{common_file}' not found at the root of the repository: {repo_path}")
     # Count total files for percentage calculation
-    for root, dirs, files in os.walk(repo_path):
+    for root, dirs, files_in_dir in os.walk(repo_path, onerror=_walk_error_handler):
         # Filter ignored dirs
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
-        for file in files:
-            path = Path(root) / file
-            if path.suffix.lower() in IGNORED_FILES or path.name in IGNORED_FILES:
-                continue
-            if not is_text_file(path):
-                continue
-            # Skip common files that we already processed
-            if path.name in common_files:
-                continue
-            total_files += 1
+        for file_name in files_in_dir:
+            path = Path(root) / file_name
+            try:
+                if path.suffix.lower() in IGNORED_FILES or path.name in IGNORED_FILES:
+                    continue
+                if not is_text_file(path):
+                    continue
+                # Skip common files that we already processed or will be processed separately
+                if path.name in common_files:
+                    continue
+
+                if not path.is_file(): # Ensure it's a file and exists
+                    continue
+
+                total_files += 1
+            except OSError as oe:
+                logger.warning(f"OSError checking file {path} during pre-count: {oe}. Skipping from count.")
+            except Exception as e:
+                logger.error(f"Unexpected error checking file {path} during pre-count: {e}. Skipping from count.")
 
     def process_file(path: Path):
         nonlocal file_count, total_files
