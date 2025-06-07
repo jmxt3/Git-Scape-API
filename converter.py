@@ -30,73 +30,99 @@ IGNORED_DIRS = {".git", "__pycache__"}
 IGNORED_FILES = {
     ".DS_Store",
     "Zone.Identifier",
-    ".jpeg", ".jpg", ".png", ".gif", ".bmp", ".tiff", ".tif", ".webp", ".heif", ".heic",
-    ".avif", ".svg", ".psd", ".raw", ".eps", ".pdf", ".ico", ".exr", ".tga", ".dds",
-    ".wdp", ".dng", ".ppm"
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".gif",
+    ".bmp",
+    ".tiff",
+    ".tif",
+    ".webp",
+    ".heif",
+    ".heic",
+    ".avif",
+    ".svg",
+    ".psd",
+    ".raw",
+    ".eps",
+    ".pdf",
+    ".ico",
+    ".exr",
+    ".tga",
+    ".dds",
+    ".wdp",
+    ".dng",
+    ".ppm",
 }
 
 TEXT_EXTS = {
-    ".py",          # Python
-    ".js",          # JavaScript
-    ".ts",          # TypeScript
-    ".java",        # Java (source)
-    ".go",          # Go
-    ".rs",          # Rust
-    ".c",           # C
-    ".cpp",         # C++
-    ".h",           # C/C++ Header
-    ".hpp",         # C++ Header (alternative)
-    ".cs",          # C#
-    ".fs",          # F#
-    ".fsi",         # F# Interface
-    ".swift",       # Swift
-    ".kt",          # Kotlin
-    ".rb",          # Ruby
-    ".php",         # PHP
-    ".pl",          # Perl
-    ".lua",         # Lua
-    ".scala",       # Scala
-    ".groovy",      # Groovy
-    ".dart",        # Dart
-    ".r",           # R
-    ".sh",          # Shell Script (generic)
-    ".bash",        # Bash Script
-    ".zsh",         # Zsh Script
-    ".bat",         # Windows Batch Script
-    ".ps1",         # PowerShell Script
-    ".psm1",        # PowerShell Module
-    ".tcl",         # TCL
-    ".m",           # Objective-C / MATLAB script
-    ".elm",         # Elm
-    ".ex",          # Elixir
-    ".exs",         # Elixir Script
-    ".clj",         # Clojure
-    ".html",        # HTML
-    ".htm",         # HTML (alternative)
-    ".css",         # CSS
-    ".scss",        # SCSS (Sass)
-    ".sass",        # Sass (indented syntax)
-    ".less",        # LESS
-    ".vue",         # Vue.js Single File Components
-    ".jsx",         # JavaScript XML (React)
-    ".tsx",         # TypeScript XML (React)
-    ".hbs",         # Handlebars templates
+    ".py",  # Python
+    ".js",  # JavaScript
+    ".ts",  # TypeScript
+    ".java",  # Java (source)
+    ".go",  # Go
+    ".rs",  # Rust
+    ".c",  # C
+    ".cpp",  # C++
+    ".h",  # C/C++ Header
+    ".hpp",  # C++ Header (alternative)
+    ".cs",  # C#
+    ".fs",  # F#
+    ".fsi",  # F# Interface
+    ".swift",  # Swift
+    ".kt",  # Kotlin
+    ".rb",  # Ruby
+    ".php",  # PHP
+    ".pl",  # Perl
+    ".lua",  # Lua
+    ".scala",  # Scala
+    ".groovy",  # Groovy
+    ".dart",  # Dart
+    ".r",  # R
+    ".sh",  # Shell Script (generic)
+    ".bash",  # Bash Script
+    ".zsh",  # Zsh Script
+    ".bat",  # Windows Batch Script
+    ".ps1",  # PowerShell Script
+    ".psm1",  # PowerShell Module
+    ".tcl",  # TCL
+    ".m",  # Objective-C / MATLAB script
+    ".elm",  # Elm
+    ".ex",  # Elixir
+    ".exs",  # Elixir Script
+    ".clj",  # Clojure
+    ".html",  # HTML
+    ".htm",  # HTML (alternative)
+    ".css",  # CSS
+    ".scss",  # SCSS (Sass)
+    ".sass",  # Sass (indented syntax)
+    ".less",  # LESS
+    ".vue",  # Vue.js Single File Components
+    ".jsx",  # JavaScript XML (React)
+    ".tsx",  # TypeScript XML (React)
+    ".hbs",  # Handlebars templates
     ".handlebars",  # Handlebars templates (alternative)
-    ".mustache",    # Mustache templates
-    ".jinja",       # Jinja templates
-    ".md",          # Markdown
-    ".markdown",    # Markdown (alternative)
-    ".txt",         # Plain Text
-    ".json",        # JSON
-    ".yml",         # YAML
-    ".yaml",        # YAML (alternative)
-    ".xml",         # XML
-    ".toml",        # TOML
-    ".graphql",     # GraphQL Schema/Query
-    ".sql",         # SQL Queries
+    ".mustache",  # Mustache templates
+    ".jinja",  # Jinja templates
+    ".md",  # Markdown
+    ".markdown",  # Markdown (alternative)
+    ".txt",  # Plain Text
+    ".json",  # JSON
+    ".yml",  # YAML
+    ".yaml",  # YAML (alternative)
+    ".xml",  # XML
+    ".toml",  # TOML
+    ".graphql",  # GraphQL Schema/Query
+    ".sql",  # SQL Queries
 }
 
-def clone_repository(repo_url: str, clone_path: str, github_token: Optional[str] = None, subpath: Optional[str] = None):
+
+def clone_repository(
+    repo_url: str,
+    clone_path: str,
+    github_token: Optional[str] = None,
+    subpath: Optional[str] = None,
+):
     """
     Clone a repository using sparse checkout and blob filtering to minimize memory usage.
     """
@@ -109,16 +135,28 @@ def clone_repository(repo_url: str, clone_path: str, github_token: Optional[str]
         env["GIT_TERMINAL_PROMPT"] = "0"
         repo_url = repo_url.replace("https://", f"https://{github_token}@")
     clone_cmd = [
-        "git", "clone", "--filter=blob:none", "--sparse", "--depth=1", repo_url, clone_path
+        "git",
+        "clone",
+        "--filter=blob:none",
+        "--sparse",
+        "--depth=1",
+        repo_url,
+        clone_path,
     ]
     subprocess.run(clone_cmd, check=True, env=env)
     if subpath:
         # Enable sparse checkout for a specific subpath
-        subprocess.run(["git", "-C", clone_path, "sparse-checkout", "set", subpath], check=True, env=env)
+        subprocess.run(
+            ["git", "-C", clone_path, "sparse-checkout", "set", subpath],
+            check=True,
+            env=env,
+        )
+
 
 def is_text_file(path: Path) -> bool:
     ext = path.suffix.lower()
     return ext in TEXT_EXTS
+
 
 def get_total_repo_size(repo_path: str) -> int:
     total = 0
@@ -129,6 +167,7 @@ def get_total_repo_size(repo_path: str) -> int:
             except Exception:
                 continue
     return total
+
 
 def read_file_in_chunks(path: Path, chunk_size: int = CHUNK_SIZE):
     if not path.exists():
@@ -144,6 +183,7 @@ def read_file_in_chunks(path: Path, chunk_size: int = CHUNK_SIZE):
     except Exception as e:
         logger.warning(f"Skipping file due to error during chunked read: {path} ({e})")
         return
+
 
 def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] = None):
     """
@@ -164,7 +204,10 @@ def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] =
             if file_size > MAX_FILE_SIZE:
                 logger.info(f"Skipping large file: {path} ({file_size} bytes)")
                 continue
-            if stats["total_files"] >= MAX_FILES or stats["total_size"] + file_size > MAX_TOTAL_SIZE_BYTES:
+            if (
+                stats["total_files"] >= MAX_FILES
+                or stats["total_size"] + file_size > MAX_TOTAL_SIZE_BYTES
+            ):
                 logger.warning("File or size limit reached, stopping traversal.")
                 return
             stats["total_files"] += 1
@@ -173,21 +216,25 @@ def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] =
                 file_callback(path)  # Always called with one argument
             gc.collect()  # Free memory after each file
 
+
 def print_tree(repo_path: str) -> list[str]:
     """
     Print a tree structure of the repository (memory efficient).
     """
     tree_lines = []
     for root, dirs, files in os.walk(repo_path):
-        level = root.replace(repo_path, '').count(os.sep)
-        indent = ' ' * 4 * level
+        level = root.replace(repo_path, "").count(os.sep)
+        indent = " " * 4 * level
         tree_lines.append(f"{indent}{os.path.basename(root)}/")
-        subindent = ' ' * 4 * (level + 1)
+        subindent = " " * 4 * (level + 1)
         for f in files:
             tree_lines.append(f"{subindent}{f}")
     return tree_lines
 
-def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=None) -> str:
+
+def generate_markdown_digest(
+    repo_url: str, repo_path: str, progress_callback=None
+) -> str:
     """
     Generate a Markdown digest of the repository, reading large files in chunks.
     Sends progress updates in the required JSON format if progress_callback is provided.
@@ -198,25 +245,38 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
 
     # List of common documentation files to attempt to include at the beginning
     common_files = [
-        "README.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md",
-        "SECURITY.md", "LICENSE", "LICENSE.md", "LICENSE.txt"
+        "README.md",
+        "CONTRIBUTING.md",
+        "CODE_OF_CONDUCT.md",
+        "SECURITY.md",
+        "LICENSE",
+        "LICENSE.md",
+        "LICENSE.txt",
     ]
 
-    # Process common files first, if they exist
+    # Process common files first, if they exist (case-insensitive)
+    repo_files = {
+        str(p.name).lower(): p for p in Path(repo_path).iterdir() if p.is_file()
+    }
     for common_file in common_files:
-        file_path = Path(repo_path) / common_file
-        if file_path.exists() and file_path.is_file():
+        # Try to find the file in a case-insensitive way
+        file_path = None
+        for fname, p in repo_files.items():
+            if fname == common_file.lower():
+                file_path = p
+                break
+        if file_path and file_path.exists() and file_path.is_file():
             try:
                 rel_path = file_path.relative_to(repo_path)
                 digest_lines.append(f"\n## {rel_path}\n")
                 with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                     digest_lines.append(f.read())
                 if progress_callback:
-                    progress_callback(f"Processed {common_file}", 5)
+                    progress_callback(f"Processed {file_path.name}", 5)
             except FileNotFoundError:
-                logger.warning(f"Common file {common_file} not found, skipping.")
+                logger.warning(f"Common file {file_path} not found, skipping.")
             except Exception as e:
-                logger.warning(f"Could not process common file {common_file}: {e}")
+                logger.warning(f"Could not process common file {file_path}: {e}")
 
     # Count total files for percentage calculation
     for root, dirs, files in os.walk(repo_path):
@@ -249,10 +309,14 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
                 try:
                     digest_lines.append(chunk.decode("utf-8", errors="replace"))
                 except Exception:
-                    logger.warning(f"Skipping chunk in file {path} due to decode error.")
+                    logger.warning(
+                        f"Skipping chunk in file {path} due to decode error."
+                    )
                     continue
         except Exception as e:
-            logger.warning(f"Skipping file due to error during processing: {path} ({e})")
+            logger.warning(
+                f"Skipping file due to error during processing: {path} ({e})"
+            )
             return
 
         file_count += 1
@@ -265,10 +329,12 @@ def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=No
     gc.collect()
     return "".join(digest_lines)
 
+
 # If run as script, keep the CLI for backward compatibility
 if __name__ == "__main__":
     # Example usage: python converter.py <repo_url> <clone_path>
     import sys
+
     if len(sys.argv) >= 3:
         repo_url = sys.argv[1]
         clone_path = sys.argv[2]
