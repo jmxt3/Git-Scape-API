@@ -20,13 +20,13 @@ from typing import Optional, Callable
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MAX_FILE_SIZE = 15 * 1024 * 1024  # 10 MB per file
-MAX_DIRECTORY_DEPTH = 40  # Maximum depth of directory traversal
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB per file
+MAX_DIRECTORY_DEPTH = 30  # Maximum depth of directory traversal
 MAX_FILES = 15_000  # Maximum number of files to process
-MAX_TOTAL_SIZE_BYTES = 1000 * 1024 * 1024  # 500 MB total repo size
+MAX_TOTAL_SIZE_BYTES = 800 * 1024 * 1024  # 500 MB total repo size
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 
-IGNORED_DIRS = {".git", "__pycache__"}
+IGNORED_DIRS = {".git", "__pycache__", "node_modules", "packages", "package-locks", ".pnpm", ".yarn", ".npm", ".rush"}
 IGNORED_FILES = {
     ".DS_Store",
     "CHANGELOG.md",
@@ -291,7 +291,7 @@ def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] =
     stats = {"total_files": 0, "total_size": 0}
     for root, dirs, files_in_dir in os.walk(repo_path, onerror=_walk_error_handler):
         # Filter ignored dirs
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not d.startswith("@")]
         for file_name in files_in_dir:
             path = Path(root) / file_name
             try:
