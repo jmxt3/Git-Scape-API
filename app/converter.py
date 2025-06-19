@@ -20,15 +20,20 @@ from typing import Optional, Callable
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB per file
+MAX_FILE_SIZE = 15 * 1024 * 1024  # 10 MB per file
 MAX_DIRECTORY_DEPTH = 30  # Maximum depth of directory traversal
 MAX_FILES = 15_000  # Maximum number of files to process
 MAX_TOTAL_SIZE_BYTES = 800 * 1024 * 1024  # 500 MB total repo size
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 
-IGNORED_DIRS = {".git", "__pycache__", "node_modules", "packages", "package-locks", ".pnpm", ".yarn", ".npm", ".rush"}
+# Ensure IGNORED_FILES is defined only once and at the top-level scope
+IGNORED_DIRS = {
+    ".git", "__pycache__", "node_modules", "packages", "package-locks", ".pnpm", ".yarn", ".npm", ".rush",
+    ".next", "build", "dist", ".out", "coverage", ".nyc_output", ".vscode", ".idea"
+}
 IGNORED_FILES = {
     ".DS_Store",
+    "Thumbs.db",
     "CHANGELOG.md",
     "Zone.Identifier",
     ".jpeg",
@@ -54,6 +59,16 @@ IGNORED_FILES = {
     ".wdp",
     ".dng",
     ".ppm",
+    ".env.local",
+    ".env.development.local",
+    ".env.test.local",
+    ".env.production.local",
+    "*.log",
+    "npm-debug.log",
+    "yarn-debug.log",
+    "yarn-error.log",
+    "pnpm-debug.log",
+    "*.sublime-workspace"
 }
 
 TEXT_EXTS = {
