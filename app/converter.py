@@ -56,64 +56,151 @@ IGNORED_FILES = {
 }
 
 TEXT_EXTS = {
-    ".py",  # Python
-    ".js",  # JavaScript
-    ".ts",  # TypeScript
-    ".java",  # Java (source)
-    ".go",  # Go
-    ".rs",  # Rust
-    ".c",  # C
-    ".cpp",  # C++
-    ".h",  # C/C++ Header
-    ".hpp",  # C++ Header (alternative)
-    ".cs",  # C#
-    ".fs",  # F#
-    ".fsi",  # F# Interface
-    ".swift",  # Swift
-    ".kt",  # Kotlin
-    ".rb",  # Ruby
-    ".php",  # PHP
-    ".pl",  # Perl
-    ".lua",  # Lua
-    ".scala",  # Scala
-    ".groovy",  # Groovy
-    ".dart",  # Dart
-    ".r",  # R
-    ".sh",  # Shell Script (generic)
-    ".bash",  # Bash Script
-    ".zsh",  # Zsh Script
-    ".bat",  # Windows Batch Script
-    ".ps1",  # PowerShell Script
-    ".psm1",  # PowerShell Module
-    ".tcl",  # TCL
-    ".m",  # Objective-C / MATLAB script
-    ".elm",  # Elm
-    ".ex",  # Elixir
-    ".exs",  # Elixir Script
-    ".clj",  # Clojure
-    ".html",  # HTML
-    ".htm",  # HTML (alternative)
-    ".css",  # CSS
-    ".scss",  # SCSS (Sass)
-    ".sass",  # Sass (indented syntax)
-    ".less",  # LESS
-    ".vue",  # Vue.js Single File Components
-    ".jsx",  # JavaScript XML (React)
-    ".tsx",  # TypeScript XML (React)
-    ".hbs",  # Handlebars templates
-    ".handlebars",  # Handlebars templates (alternative)
-    ".mustache",  # Mustache templates
-    ".jinja",  # Jinja templates
-    ".md",  # Markdown
-    ".markdown",  # Markdown (alternative)
-    ".txt",  # Plain Text
-    ".json",  # JSON
-    ".yml",  # YAML
-    ".yaml",  # YAML (alternative)
-    ".xml",  # XML
-    ".toml",  # TOML
-    ".graphql",  # GraphQL Schema/Query
-    ".sql",  # SQL Queries
+  ".adoc",  # AsciiDoc
+  ".asciidoc", # AsciiDoc (alternative)
+  ".ada",   # Ada
+  ".adb",   # Ada (body)
+  ".ads",   # Ada (specification)
+  ".asp",   # Active Server Pages (Classic)
+  ".aspx",  # Active Server Pages .NET
+  ".asm",   # Assembly Language
+  ".astro", # Astro Component
+  ".bash", # Bash Script
+  ".bat", # Windows Batch Script
+  ".bib",   # BibTeX Bibliography
+  ".build", # Build File (generic)
+  ".c", # C
+  ".cbl",   # COBOL
+  ".cfg",   # Configuration File (generic)
+  ".clj", # Clojure
+  ".cls",   # LaTeX Class File
+  ".cob",   # COBOL (alternative)
+  ".conf",  # Configuration File (generic)
+  ".cpp", # C++
+  ".cql",   # Cassandra Query Language
+  ".cr",    # Crystal
+  ".cs", # C#
+  ".cshtml", # C# HTML (Razor)
+  ".csproj",# C# Project
+  ".css", # CSS
+  ".csv",   # Comma-Separated Values
+  ".cypher",# Cypher Query Language (Neo4j)
+  ".d",     # D
+  ".dart", # Dart
+  ".dockerfile", # Dockerfile
+  ".ejs",   # Embedded JavaScript templates
+  ".elm", # Elm
+  ".env",   # Environment Variables
+  ".erb",   # Embedded Ruby (Rails templates)
+  ".erl",   # Erlang
+  ".ex", # Elixir
+  ".exs", # Elixir Script
+  ".f",     # Fortran
+  ".f90",   # Fortran 90
+  ".f95",   # Fortran 95
+  ".fs", # F#
+  ".fsi", # F# Interface
+  ".fsproj",# F# Project
+  ".gitattributes", # Git Attributes
+  ".gitignore", # Git Ignore Rules
+  ".go", # Go
+  ".gradle",# Gradle Script
+  ".graphql", # GraphQL Schema/Query
+  ".groovy", # Groovy
+  ".h", # C/C++ Header
+  ".handlebars", # Handlebars templates (alternative)
+  ".hbs", # Handlebars templates
+  ".hcl",   # HashiCorp Configuration Language (Terraform, Packer)
+  ".hpp", # C++ Header (alternative)
+  ".hrl",   # Erlang Header
+  ".hs",    # Haskell
+  ".htm", # HTML (alternative)
+  ".html", # HTML
+  ".idr",   # Idris
+  ".ini",   # INI Configuration
+  ".java", # Java (source)
+  ".jinja", # Jinja templates
+  ".js", # JavaScript
+  ".json", # JSON
+  ".jsp",   # JavaServer Pages
+  ".jsx", # JavaScript XML (React)
+  ".kt", # Kotlin
+  ".less", # LESS
+  ".lhs",   # Literate Haskell
+  ".lidr",  # Literate Idris
+  ".liquid",# Liquid templates (Jekyll, Shopify)
+  ".lua", # Lua
+  ".m", # Objective-C / MATLAB script
+  ".markdown", # Markdown (alternative)
+  ".md", # Markdown
+  ".ml",    # OCaml
+  ".mli",   # OCaml Interface
+  ".mustache", # Mustache templates
+  ".nim",   # Nim
+  ".p",     # Pascal (alternative)
+  ".pas",   # Pascal
+  ".php", # PHP
+  ".pl", # Perl
+  ".plist", # Property List (Apple)
+  ".plsql", # Oracle PL/SQL
+  ".pom",   # Project Object Model (Maven)
+  ".pp",    # Pascal (alternative for Free Pascal)
+  ".properties", # Java Properties
+  ".ps1", # PowerShell Script
+  ".psm1", # PowerShell Module
+  ".psql",  # PostgreSQL procedural language
+  ".pug",   # Pug templates (formerly Jade)
+  ".py", # Python
+  ".r", # R
+  ".rb", # Ruby
+  ".re",    # Reason
+  ".rei",   # Reason Interface
+  ".Rmd",   # R Markdown
+  ".rs", # Rust
+  ".rst",   # reStructuredText
+  ".S",     # Assembly Language (often for Unix-like systems)
+  ".sass", # Sass (indented syntax)
+  ".sbt",   # Scala Build Tool
+  ".scala", # Scala
+  ".scss", # SCSS (Sass)
+  ".sh", # Shell Script (generic)
+  ".slim",  # Slim templates
+  ".sln",   # Visual Studio Solution
+  ".sol",   # Solidity (for Ethereum)
+  ".sql", # SQL Queries
+  ".strings", # Resource Strings (Apple)
+  ".sty",   # LaTeX Style File
+  ".svelte",# Svelte Component
+  ".svg",   # Scalable Vector Graphics (XML-based)
+  ".swift", # Swift
+  ".tcl", # TCL
+  ".tex",   # LaTeX
+  ".tf",    # Terraform Configuration
+  ".tfvars",# Terraform Variables
+  ".toml", # TOML
+  ".ts", # TypeScript
+  ".tsv",   # Tab-Separated Values
+  ".tsql",  # Transact-SQL (Microsoft SQL Server)
+  ".tsx", # TypeScript XML (React)
+  ".txt", # Plain Text
+  ".v",     # Verilog
+  ".vbhtml", # VB.NET HTML (Razor)
+  ".vbcsproj",# Visual Basic .NET Project
+  ".vcxproj",# Visual C++ Project
+  ".vhd",   # VHDL
+  ".vhdl",  # VHDL (alternative)
+  ".vim",   # Vim Script
+  ".vimrc", # Vim Configuration
+  ".vue", # Vue.js Single File Components
+  ".xaml",  # XAML (WPF, .NET MAUI)
+  ".xcodeproj", # Xcode Project
+  ".xcworkspace", # Xcode Workspace
+  ".xml", # XML
+  ".xul",   # XUL (Mozilla)
+  ".yaml", # YAML (alternative)
+  ".yml", # YAML
+  ".zig",   # Zig
+  ".zsh", # Zsh Script
 }
 
 

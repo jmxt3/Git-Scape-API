@@ -24,8 +24,8 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocketState
 
-from app.config import settings
-import converter
+from app.config import settings, origins
+import app.converter as converter
 import requests
 
 logging.basicConfig(level=logging.INFO)
@@ -280,7 +280,7 @@ def create_app() -> FastAPI:
     # Configure CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
