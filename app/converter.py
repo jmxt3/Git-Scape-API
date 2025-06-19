@@ -68,12 +68,15 @@ IGNORED_FILES = {
     "yarn-debug.log",
     "yarn-error.log",
     "pnpm-debug.log",
+    "pnpm-lock.yaml",
+    "package-lock.json",
+    "bun.lockb",
+    "yarn.lock"
+    "uv.lock"
     "*.sublime-workspace"
 }
 
 TEXT_EXTS = {
-  ".adoc",  # AsciiDoc
-  ".asciidoc", # AsciiDoc (alternative)
   ".ada",   # Ada
   ".adb",   # Ada (body)
   ".ads",   # Ada (specification)
@@ -82,7 +85,6 @@ TEXT_EXTS = {
   ".asm",   # Assembly Language
   ".astro", # Astro Component
   ".bash", # Bash Script
-  ".bat", # Windows Batch Script
   ".bib",   # BibTeX Bibliography
   ".build", # Build File (generic)
   ".c", # C
@@ -99,7 +101,6 @@ TEXT_EXTS = {
   ".cshtml", # C# HTML (Razor)
   ".csproj",# C# Project
   ".css", # CSS
-  ".csv",   # Comma-Separated Values
   ".cypher",# Cypher Query Language (Neo4j)
   ".d",     # D
   ".dart", # Dart
@@ -176,7 +177,6 @@ TEXT_EXTS = {
   ".rst",   # reStructuredText
   ".S",     # Assembly Language (often for Unix-like systems)
   ".sass", # Sass (indented syntax)
-  ".sbt",   # Scala Build Tool
   ".scala", # Scala
   ".scss", # SCSS (Sass)
   ".sh", # Shell Script (generic)
@@ -193,9 +193,7 @@ TEXT_EXTS = {
   ".tex",   # LaTeX
   ".tf",    # Terraform Configuration
   ".tfvars",# Terraform Variables
-  ".toml", # TOML
   ".ts", # TypeScript
-  ".tsv",   # Tab-Separated Values
   ".tsql",  # Transact-SQL (Microsoft SQL Server)
   ".tsx", # TypeScript XML (React)
   ".txt", # Plain Text
@@ -208,13 +206,6 @@ TEXT_EXTS = {
   ".vim",   # Vim Script
   ".vimrc", # Vim Configuration
   ".vue", # Vue.js Single File Components
-  ".xaml",  # XAML (WPF, .NET MAUI)
-  ".xcodeproj", # Xcode Project
-  ".xcworkspace", # Xcode Workspace
-  ".xml", # XML
-  ".xul",   # XUL (Mozilla)
-  ".yaml", # YAML (alternative)
-  ".yml", # YAML
   ".zig",   # Zig
   ".zsh", # Zsh Script
 }
