@@ -29,6 +29,7 @@ CHUNK_SIZE = 1024 * 1024  # 1 MB
 IGNORED_DIRS = {".git", "__pycache__"}
 IGNORED_FILES = {
     ".DS_Store",
+    "CHANGELOG.md",
     "Zone.Identifier",
     ".jpeg",
     ".jpg",
@@ -242,6 +243,9 @@ def clone_repository(
 
 def is_text_file(path: Path) -> bool:
     ext = path.suffix.lower()
+    # Only skip CHANGELOG.md, not all .md files
+    if path.name == "CHANGELOG.md":
+        return False
     return ext in TEXT_EXTS
 
 
