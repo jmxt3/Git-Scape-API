@@ -23,8 +23,7 @@ logger = logging.getLogger(__name__)
 
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 10 MB per file
 MAX_DIRECTORY_DEPTH = 30  # Maximum depth of directory traversal
-MAX_FILES = 12_000  # Maximum number of files to process
-MAX_TOTAL_SIZE_BYTES = 600 * 1024 * 1024  # 500 MB total repo size
+MAX_TOTAL_SIZE_BYTES = 800 * 1024 * 1024  # 800 MB total repo size
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 # Ensure IGNORED_FILES is defined only once and at the top-level scope
@@ -316,11 +315,8 @@ def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] =
                     logger.info(f"Skipping large file: {path} ({file_size} bytes)")
                     continue
 
-                if (
-                    stats["total_files"] >= MAX_FILES
-                    or stats["total_size"] + file_size > MAX_TOTAL_SIZE_BYTES
-                ):
-                    logger.warning(f"Repository size or file count limit reached. Stopping traversal. Files processed so far: {stats['total_files']}, size so far: {stats['total_size']}.")
+                if stats["total_size"] + file_size > MAX_TOTAL_SIZE_BYTES:
+                    logger.warning(f"Repository size limit reached. Stopping traversal. Files processed so far: {stats['total_files']}, size so far: {stats['total_size']}.")
                     return # Stop all traversal
 
                 stats["total_files"] += 1
