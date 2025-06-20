@@ -34,7 +34,7 @@ IGNORED_DIRS = {
 }
 IGNORED_FILES = {
     ".DS_Store",
-    "Thumbs.db",
+    ".db",
     "CHANGELOG.md",
     "Zone.Identifier",
     ".jpeg",
@@ -54,27 +54,22 @@ IGNORED_FILES = {
     ".eps",
     ".pdf",
     ".ico",
+    ".csv",
+    ".xls",
+    ".xlsx",
     ".exr",
     ".tga",
     ".dds",
     ".wdp",
     ".dng",
     ".ppm",
-    ".env.local",
-    ".env.development.local",
-    ".env.test.local",
-    ".env.production.local",
-    "*.log",
-    "npm-debug.log",
-    "yarn-debug.log",
-    "yarn-error.log",
-    "pnpm-debug.log",
-    "pnpm-lock.yaml",
-    "package-lock.json",
-    "bun.lockb",
-    "yarn.lock",
-    "uv.lock",
-    "*.sublime-workspace"
+    ".local",
+    ".log",
+    ".yaml",
+    ".json",
+    ".lockb",
+    ".lock",
+    ".sublime-workspace"
 }
 
 TEXT_EXTS = {
@@ -301,7 +296,7 @@ def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] =
     file_callback must accept exactly one argument: the Path of the file.
     """
     stats = {"total_files": 0, "total_size": 0}
-    for root, dirs, files_in_dir in os.walk(repo_path, onerror=_walk_error_handler):
+    for root, dirs, files_in_dir in os.walk(repo_path, topdown=True, onerror=_walk_error_handler):
         # Filter ignored dirs
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not d.startswith("@")]
         for file_name in files_in_dir:
@@ -361,8 +356,8 @@ def print_tree(repo_path: str) -> list[str]:
 def count_total_files(repo_path: str, common_files: list[str]) -> int:
     total_files = 0
     for root, dirs, files_in_dir in os.walk(repo_path, onerror=_walk_error_handler):
-        # Filter ignored dirs
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        # Filter ignored dirs (must match trace_repo logic exactly)
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not d.startswith("@")]
         for file_name in files_in_dir:
             path = Path(root) / file_name
             try:
