@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import gc
 import logging
+import fnmatch
 from pathlib import Path
 from typing import Optional, Callable
 
@@ -22,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 10 MB per file
 MAX_DIRECTORY_DEPTH = 30  # Maximum depth of directory traversal
-MAX_FILES = 15_000  # Maximum number of files to process
-MAX_TOTAL_SIZE_BYTES = 800 * 1024 * 1024  # 500 MB total repo size
+MAX_FILES = 12_000  # Maximum number of files to process
+MAX_TOTAL_SIZE_BYTES = 600 * 1024 * 1024  # 500 MB total repo size
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 # Ensure IGNORED_FILES is defined only once and at the top-level scope
@@ -71,8 +72,8 @@ IGNORED_FILES = {
     "pnpm-lock.yaml",
     "package-lock.json",
     "bun.lockb",
-    "yarn.lock"
-    "uv.lock"
+    "yarn.lock",
+    "uv.lock",
     "*.sublime-workspace"
 }
 
@@ -249,9 +250,6 @@ def clone_repository(
 
 def is_text_file(path: Path) -> bool:
     ext = path.suffix.lower()
-    # Only skip CHANGELOG.md, not all .md files
-    if path.name == "CHANGELOG.md":
-        return False
     return ext in TEXT_EXTS
 
 
@@ -289,6 +287,14 @@ def _walk_error_handler(os_error: OSError):
     )
 
 
+def is_ignored_file(path: Path) -> bool:
+    # Check for exact name or pattern match
+    for pattern in IGNORED_FILES:
+        if fnmatch.fnmatch(path.name, pattern):
+            return True
+    return False
+
+
 def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] = None):
     """
     Walk the repo, process files in a memory-efficient way, and call file_callback(path) for each file.
@@ -301,7 +307,7 @@ def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] =
         for file_name in files_in_dir:
             path = Path(root) / file_name
             try:
-                if path.suffix.lower() in IGNORED_FILES or path.name in IGNORED_FILES:
+                if is_ignored_file(path):
                     continue
                 if not is_text_file(path):
                     continue
