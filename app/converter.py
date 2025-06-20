@@ -358,6 +358,31 @@ def print_tree(repo_path: str) -> list[str]:
     return tree_lines
 
 
+def count_total_files(repo_path: str, common_files: list[str]) -> int:
+    total_files = 0
+    for root, dirs, files_in_dir in os.walk(repo_path, onerror=_walk_error_handler):
+        # Filter ignored dirs
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        for file_name in files_in_dir:
+            path = Path(root) / file_name
+            try:
+                if is_ignored_file(path):
+                    continue
+                if not is_text_file(path):
+                    continue
+                # Skip common files that we already processed or will be processed separately
+                if path.name in common_files:
+                    continue
+                if not path.is_file(): # Ensure it's a file and exists
+                    continue
+                total_files += 1
+            except OSError as oe:
+                logger.warning(f"OSError checking file {path} during pre-count: {oe}. Skipping from count.")
+            except Exception as e:
+                logger.error(f"Unexpected error checking file {path} during pre-count: {e}. Skipping from count.")
+    return total_files
+
+
 def generate_markdown_digest(
     repo_url: str, repo_path: str, progress_callback=None
 ) -> str:
@@ -367,8 +392,6 @@ def generate_markdown_digest(
     """
     digest_lines = [f"# Repository Digest for {repo_url}\n"]
     file_count = 0
-    total_files = 0
-
     # List of common documentation files to attempt to include at the beginning
     common_files = [
         "README.md",
@@ -379,7 +402,6 @@ def generate_markdown_digest(
         "LICENSE.md",
         "LICENSE.txt",
     ]
-
     # Process common files first, if they exist (case-insensitive)
     repo_files = {
         str(p.name).lower(): p for p in Path(repo_path).iterdir() if p.is_file()
@@ -411,39 +433,15 @@ def generate_markdown_digest(
         else: # File not found in initial listing by iterdir
             logger.info(f"Common file '{common_file}' not found at the root of the repository: {repo_path}")
     # Count total files for percentage calculation
-    for root, dirs, files_in_dir in os.walk(repo_path, onerror=_walk_error_handler):
-        # Filter ignored dirs
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
-        for file_name in files_in_dir:
-            path = Path(root) / file_name
-            try:
-                if path.suffix.lower() in IGNORED_FILES or path.name in IGNORED_FILES:
-                    continue
-                if not is_text_file(path):
-                    continue
-                # Skip common files that we already processed or will be processed separately
-                if path.name in common_files:
-                    continue
-
-                if not path.is_file(): # Ensure it's a file and exists
-                    continue
-
-                total_files += 1
-            except OSError as oe:
-                logger.warning(f"OSError checking file {path} during pre-count: {oe}. Skipping from count.")
-            except Exception as e:
-                logger.error(f"Unexpected error checking file {path} during pre-count: {e}. Skipping from count.")
-
+    total_files = count_total_files(repo_path, common_files)
     def process_file(path: Path):
         nonlocal file_count, total_files
         # Skip already processed common files
         if path.name in common_files:
             return
-
         if not path.exists():
             logger.warning(f"File disappeared before processing: {path}")
             return
-
         try:
             digest_lines.append(f"\n## {path.relative_to(repo_path)}\n")
             for chunk in read_file_in_chunks(path):
@@ -459,13 +457,11 @@ def generate_markdown_digest(
                 f"Skipping file due to error during processing: {path} ({e})"
             )
             return
-
         file_count += 1
         if progress_callback and total_files > 0:
             percentage = int((file_count / total_files) * 90) + 10  # 10-100%
             message = f"Currently processing {path.name}..."
             progress_callback(message, percentage)
-
     trace_repo(repo_path, file_callback=process_file)
     gc.collect()
     return "".join(digest_lines)
