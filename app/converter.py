@@ -15,6 +15,7 @@ import subprocess
 import gc
 import logging
 import fnmatch
+import urllib.parse
 from pathlib import Path
 from typing import Optional, Callable, List, Set
 
@@ -240,6 +241,13 @@ def clone_repository(
             check=True,
             env=env,
         )
+    else:
+        # When no subpath is specified, disable sparse-checkout to get all files
+        subprocess.run(
+            ["git", "-C", clone_path, "sparse-checkout", "disable"],
+            check=True,
+            env=env,
+        )
 
 
 def is_ignored_file(path: Path) -> bool:
@@ -321,13 +329,26 @@ def get_all_text_files(root: Path) -> list:
 
 def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=None) -> str:
     root = Path(repo_path)
+    try:
+        # Extract a descriptive name from the repo_url
+        path_parts = urllib.parse.urlparse(repo_url).path.strip("/").split("/")
+        if len(path_parts) >= 2:
+            owner, repo = path_parts[-2], path_parts[-1]
+            if repo.endswith(".git"):
+                repo = repo[:-4]
+            repo_name = f"{owner}-{repo}"
+        else:
+            # Fallback for unusual URLs
+            repo_name = Path(urllib.parse.urlparse(repo_url).path).stem
+    except Exception:
+        repo_name = root.name  # Fallback to tmpdir name
     digest = []
     if repo_url:
         digest.append(f"Repository: {repo_url}")
     text_files = get_all_text_files(root)
     digest.append(f"Files analyzed: {len(text_files)}\n")
     digest.append("Directory structure:")
-    digest.append("└── " + root.name)
+    digest.append(f"└── {repo_name}/")
     digest.append(build_directory_tree(root, prefix="    "))
     for file_path in text_files:
         rel_path = file_path.relative_to(root)
