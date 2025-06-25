@@ -217,6 +217,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "slowapi" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -227,6 +228,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "requests", specifier = ">=2.32.3" },
     { name = "slowapi", specifier = ">=0.1.9" },
+    { name = "uvicorn", specifier = ">=0.34.2" },
 ]
 
 [[package]]

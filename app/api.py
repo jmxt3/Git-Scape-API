@@ -103,6 +103,9 @@ def read_root(request: Request):
     """Root endpoint providing a welcome message."""
     return {"message": "GitScape"}
 
+@router.get("/health")
+async def health_check():
+    return {"status": "OK"}
 
 @router.get("/converter")
 def get_digest(

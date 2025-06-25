@@ -41,24 +41,47 @@ See the [OpenAPI docs](http://localhost:8000/docs) when running locally for full
    git clone https://github.com/jmxt3/Git-Scape-API.git
    cd Git-Scape-API
    ```
-2. **Install Python 3.10+** and [Poetry](https://python-poetry.org/) or use `pip`:
+2. **Install [uv](https://github.com/astral-sh/uv) (Python package manager):**
+   - On macOS and Linux:
+     ```bash
+     curl -LsSf https://astral.sh/uv/install.sh | sh
+     ```
+   - Or with pip (if you already have Python):
+     ```bash
+     pip install uv
+     # or
+     pipx install uv
+     ```
+   - See [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) for more options.
+
+3. **(Optional) Install Python with uv:**
+   - If you don't have Python 3.10+ installed, you can let uv manage it:
+     ```bash
+     uv python install 3.10
+     # or for the latest version:
+     uv python install
+     ```
+   - uv will automatically use your system Python if available, or install as needed.
+
+4. **Create a virtual environment and install dependencies:**
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
+   uv venv
+   source .venv/bin/activate
+   uv sync
    ```
-3. **Copy environment config:**
+
+5. **Copy environment config:**
    ```bash
    cp .env.example .env
    # Edit .env as needed
    ```
-4. **Run the API locally:**
+6. **Run the API locally:**
    ```bash
    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
    # or
    fastapi dev
    ```
-5. **Access docs:**
+7. **Access docs:**
    - Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
    - ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
