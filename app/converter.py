@@ -16,12 +16,12 @@ import gc
 import logging
 import fnmatch
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional, Callable, List, Set
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MAX_FILE_SIZE = 15 * 1024 * 1024  # 10 MB per file
+MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB per file
 MAX_DIRECTORY_DEPTH = 30  # Maximum depth of directory traversal
 MAX_TOTAL_SIZE_BYTES = 800 * 1024 * 1024  # 800 MB total repo size
 CHUNK_SIZE = 1024 * 1024  # 1 MB
@@ -149,7 +149,7 @@ TEXT_EXTS = {
   ".mli",   # OCaml Interface
   ".mustache", # Mustache templates
   ".nim",   # Nim
-  ".p",     # Pascal (alternative)
+  ".p"     # Pascal (alternative)
   ".pas",   # Pascal
   ".php", # PHP
   ".pl", # Perl
@@ -242,136 +242,111 @@ def clone_repository(
         )
 
 
-def is_text_file(path: Path) -> bool:
-    ext = path.suffix.lower()
-    return ext in TEXT_EXTS
-
-
-def get_total_repo_size(repo_path: str) -> int:
-    total = 0
-    for root, dirs, files in os.walk(repo_path):
-        for f in files:
-            try:
-                total += os.path.getsize(os.path.join(root, f))
-            except Exception:
-                continue
-    return total
-
-
-def read_file_in_chunks(path: Path, chunk_size: int = CHUNK_SIZE):
-    if not path.exists():
-        logger.warning(f"File disappeared before reading: {path}")
-        return
-    try:
-        with open(path, "rb") as f:
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                yield chunk
-    except Exception as e:
-        logger.warning(f"Skipping file due to error during chunked read: {path} ({e})")
-        return
-
-
-def _walk_error_handler(os_error: OSError):
-    """Handles errors during os.walk, allowing it to skip problematic directories."""
-    logger.warning(
-        f"Error accessing directory {os_error.filename} during walk: {os_error.strerror}. Skipping."
-    )
-
-
 def is_ignored_file(path: Path) -> bool:
-    # Check for exact name or pattern match
-    for pattern in IGNORED_FILES:
-        if fnmatch.fnmatch(path.name, pattern):
-            return True
+    if path.name in IGNORED_FILES:
+        return True
+    if path.suffix in IGNORED_FILES:
+        return True
     return False
 
 
-def trace_repo(repo_path: str, file_callback: Optional[Callable[[Path], None]] = None):
-    """
-    Walk the repo, process files in a memory-efficient way, and call file_callback(path) for each file.
-    file_callback must accept exactly one argument: the Path of the file.
-    """
-    stats = {"total_files": 0, "total_size": 0}
-    for root, dirs, files_in_dir in os.walk(repo_path, topdown=True, onerror=_walk_error_handler):
-        # Filter ignored dirs
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not d.startswith("@")]
-        for file_name in files_in_dir:
-            path = Path(root) / file_name
-            try:
-                if is_ignored_file(path):
-                    continue
-                if not is_text_file(path):
-                    continue
-
-                if not path.is_file():  # Checks existence and if it's a file
-                    logger.info(f"Skipping non-file or missing entry: {path}")
-                    continue
-
-                file_size = path.stat().st_size
-                if file_size > MAX_FILE_SIZE:
-                    logger.info(f"Skipping large file: {path} ({file_size} bytes)")
-                    continue
-
-                if stats["total_size"] + file_size > MAX_TOTAL_SIZE_BYTES:
-                    logger.warning(f"Repository size limit reached. Stopping traversal. Files processed so far: {stats['total_files']}, size so far: {stats['total_size']}.")
-                    return # Stop all traversal
-
-                stats["total_files"] += 1
-                stats["total_size"] += file_size
-
-                if file_callback:
-                    file_callback(path)
-
-                gc.collect()
-            except FileNotFoundError:
-                logger.warning(f"File not found during trace_repo processing: {path}. Skipping this file.")
-            except OSError as oe:
-                logger.warning(f"OSError processing file {path} in trace_repo: {oe}. Skipping this file.")
-            except Exception as e:
-                logger.error(f"Unexpected error processing file {path} in trace_repo: {e}. Skipping this file.")
+def is_ignored_dir(path: Path) -> bool:
+    return path.name in IGNORED_DIRS
 
 
-def print_tree(repo_path: str) -> list[str]:
-    """
-    Print a tree structure of the repository (memory efficient).
-    """
-    tree_lines = []
-    for root, dirs, files in os.walk(repo_path):
-        level = root.replace(repo_path, "").count(os.sep)
-        indent = " " * 4 * level
-        tree_lines.append(f"{indent}{os.path.basename(root)}/")
-        subindent = " " * 4 * (level + 1)
-        for f in files:
-            tree_lines.append(f"{subindent}{f}")
-    return tree_lines
+def is_text_file(path: Path) -> bool:
+    return path.suffix.lower() in TEXT_EXTS
 
 
-def count_total_files(repo_path: str, common_files: list[str]) -> int:
-    total_files = 0
-    for root, dirs, files_in_dir in os.walk(repo_path, onerror=_walk_error_handler):
-        # Filter ignored dirs (must match trace_repo logic exactly)
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not d.startswith("@")]
-        for file_name in files_in_dir:
-            path = Path(root) / file_name
-            try:
-                if is_ignored_file(path):
-                    continue
-                if not is_text_file(path):
-                    continue
-                # Skip common files that we already processed or will be processed separately
-                if path.name in common_files:
-                    continue
-                if not path.is_file(): # Ensure it's a file and exists
-                    continue
-                total_files += 1
-            except OSError as oe:
-                logger.warning(f"OSError checking file {path} during pre-count: {oe}. Skipping from count.")
-            except Exception as e:
-                logger.error(f"Unexpected error checking file {path} during pre-count: {e}. Skipping from count.")
-    return total_files
+def scan_files(
+    root: Path,
+    depth: int = 0,
+    max_depth: int = MAX_DIRECTORY_DEPTH,
+    total_size: int = 0,
+    max_total_size: int = MAX_TOTAL_SIZE_BYTES,
+    files: Optional[List[Path]] = None,
+) -> List[Path]:
+    if files is None:
+        files = []
+    if depth > max_depth:
+        return files
+    for entry in root.iterdir():
+        if entry.is_symlink():
+            continue
+        if entry.is_dir():
+            if is_ignored_dir(entry):
+                continue
+            scan_files(entry, depth + 1, max_depth, total_size, max_total_size, files)
+        elif entry.is_file():
+            if is_ignored_file(entry):
+                continue
+            if not is_text_file(entry):
+                continue
+            size = entry.stat().st_size
+            if size > MAX_FILE_SIZE:
+                continue
+            if total_size + size > max_total_size:
+                continue
+            files.append(entry)
+            total_size += size
+    return files
+
+
+def scan_all_structure(
+    root: Path,
+    depth: int = 0,
+    max_depth: int = MAX_DIRECTORY_DEPTH,
+    tree: Optional[dict] = None,
+) -> dict:
+    if tree is None:
+        tree = {}
+    if depth > max_depth:
+        return tree
+    for entry in sorted(root.iterdir()):
+        if entry.is_symlink():
+            continue
+        if entry.is_dir():
+            if is_ignored_dir(entry):
+                continue
+            tree[entry.name] = scan_all_structure(entry, depth + 1, max_depth)
+        elif entry.is_file():
+            if is_ignored_file(entry):
+                continue
+            tree[entry.name] = None
+    return tree
+
+
+def format_tree_from_dict(tree: dict, prefix: str = "", is_last: bool = True) -> List[str]:
+    lines = []
+    items = list(tree.items())
+    for i, (k, v) in enumerate(items):
+        connector = "└── " if i == len(items) - 1 else "├── "
+        if isinstance(v, dict):
+            lines.append(f"{prefix}{connector}{k}/")
+            extension = "    " if i == len(items) - 1 else "│   "
+            lines.extend(format_tree_from_dict(v, prefix + extension, is_last=(i == len(items) - 1)))
+        else:
+            lines.append(f"{prefix}{connector}{k}")
+    return lines
+
+
+def format_tree(root: Path) -> str:
+    tree = scan_all_structure(root)
+    return "Directory structure:\n" + "\n".join(format_tree_from_dict(tree))
+
+
+def format_file_content(root: Path, files: List[Path]) -> str:
+    out = []
+    for file in files:
+        rel = file.relative_to(root)
+        out.append(f"================================================\nFILE: {rel}\n================================================")
+        try:
+            with open(file, "r", encoding="utf-8", errors="replace") as f:
+                out.append(f.read())
+        except Exception as e:
+            out.append(f"[Error reading file: {e}]")
+        out.append("")
+    return "\n".join(out)
 
 
 def generate_markdown_digest(
@@ -381,81 +356,12 @@ def generate_markdown_digest(
     Generate a Markdown digest of the repository, reading large files in chunks.
     Sends progress updates in the required JSON format if progress_callback is provided.
     """
-    digest_lines = [f"# Repository Digest for {repo_url}\n"]
-    file_count = 0
-    # List of common documentation files to attempt to include at the beginning
-    common_files = [
-        "README.md",
-        "CONTRIBUTING.md",
-        "CODE_OF_CONDUCT.md",
-        "SECURITY.md",
-        "LICENSE",
-        "LICENSE.md",
-        "LICENSE.txt",
-    ]
-    # Process common files first, if they exist (case-insensitive)
-    repo_files = {
-        str(p.name).lower(): p for p in Path(repo_path).iterdir() if p.is_file()
-    }
-    for common_file in common_files:
-        # Try to find the file in a case-insensitive way
-        file_path = None
-        for fname, p in repo_files.items():
-            if fname == common_file.lower():
-                file_path = p
-                break
-        if file_path and file_path.exists() and file_path.is_file():
-            try:
-                rel_path = file_path.relative_to(repo_path)
-                digest_lines.append(f"\n## {rel_path}\n")
-                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                    digest_lines.append(f.read())
-                if progress_callback:
-                    progress_callback(f"Processed {file_path.name}", 5)
-            except FileNotFoundError:
-                logger.warning(f"Common file {file_path} not found, skipping.")
-            except OSError as oe:
-                # Catch OSError more broadly, FNF is a subclass. This helps if FNF isn't caught directly.
-                logger.warning(f"OSError when processing common file {file_path} (Error: {oe}). Skipping.")
-            except Exception as e:
-                logger.warning(f"Could not process common file {file_path}: {e}")
-        elif common_file.lower() in repo_files: # File was in repo_files but .exists() or .is_file() failed
-            logger.warning(f"Common file '{common_file}' found in listing but failed exists/is_file check for path: {repo_files.get(common_file.lower())}")
-        else: # File not found in initial listing by iterdir
-            logger.info(f"Common file '{common_file}' not found at the root of the repository: {repo_path}")
-    # Count total files for percentage calculation
-    total_files = count_total_files(repo_path, common_files)
-    def process_file(path: Path):
-        nonlocal file_count, total_files
-        # Skip already processed common files
-        if path.name in common_files:
-            return
-        if not path.exists():
-            logger.warning(f"File disappeared before processing: {path}")
-            return
-        try:
-            digest_lines.append(f"\n## {path.relative_to(repo_path)}\n")
-            for chunk in read_file_in_chunks(path):
-                try:
-                    digest_lines.append(chunk.decode("utf-8", errors="replace"))
-                except Exception:
-                    logger.warning(
-                        f"Skipping chunk in file {path} due to decode error."
-                    )
-                    continue
-        except Exception as e:
-            logger.warning(
-                f"Skipping file due to error during processing: {path} ({e})"
-            )
-            return
-        file_count += 1
-        if progress_callback and total_files > 0:
-            percentage = int((file_count / total_files) * 90) + 10  # 10-100%
-            message = f"Currently processing {path.name}..."
-            progress_callback(message, percentage)
-    trace_repo(repo_path, file_callback=process_file)
-    gc.collect()
-    return "".join(digest_lines)
+    root = Path(repo_path)
+    files = scan_files(root)
+    summary = f"Repository: {repo_url}\nFiles analyzed: {len(files)}"
+    tree = format_tree(root)
+    content = format_file_content(root, files)
+    return f"{summary}\n\n{tree}\n\n{content}\n"
 
 
 # If run as script, keep the CLI for backward compatibility
