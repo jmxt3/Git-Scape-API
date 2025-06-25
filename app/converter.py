@@ -292,88 +292,63 @@ def scan_files(
     return files
 
 
-def scan_all_structure(
-    root: Path,
-    depth: int = 0,
-    max_depth: int = MAX_DIRECTORY_DEPTH,
-    tree: Optional[dict] = None,
-) -> dict:
-    if tree is None:
-        tree = {}
-    if depth > max_depth:
-        return tree
-    for entry in sorted(root.iterdir()):
+def build_directory_tree(root: Path, prefix: str = "", is_last: bool = True) -> str:
+    entries = [e for e in sorted(root.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+               if not (is_ignored_dir(e) if e.is_dir() else is_ignored_file(e))]
+    tree_str = ""
+    for idx, entry in enumerate(entries):
+        connector = "└── " if idx == len(entries) - 1 else "├── "
+        tree_str += f"{prefix}{connector}{entry.name}\n"
+        if entry.is_dir():
+            extension = "    " if idx == len(entries) - 1 else "│   "
+            tree_str += build_directory_tree(entry, prefix + extension, is_last=(idx == len(entries) - 1))
+    return tree_str
+
+
+def get_all_text_files(root: Path) -> list:
+    files = []
+    for entry in root.iterdir():
         if entry.is_symlink():
             continue
         if entry.is_dir():
-            if is_ignored_dir(entry):
-                continue
-            tree[entry.name] = scan_all_structure(entry, depth + 1, max_depth)
+            if not is_ignored_dir(entry):
+                files.extend(get_all_text_files(entry))
         elif entry.is_file():
-            if is_ignored_file(entry):
-                continue
-            tree[entry.name] = None
-    return tree
+            if not is_ignored_file(entry) and entry.suffix.lower() in TEXT_EXTS:
+                files.append(entry)
+    return files
 
 
-def format_tree_from_dict(tree: dict, prefix: str = "", is_last: bool = True) -> List[str]:
-    lines = []
-    items = list(tree.items())
-    for i, (k, v) in enumerate(items):
-        connector = "└── " if i == len(items) - 1 else "├── "
-        if isinstance(v, dict):
-            lines.append(f"{prefix}{connector}{k}/")
-            extension = "    " if i == len(items) - 1 else "│   "
-            lines.extend(format_tree_from_dict(v, prefix + extension, is_last=(i == len(items) - 1)))
-        else:
-            lines.append(f"{prefix}{connector}{k}")
-    return lines
-
-
-def format_tree(root: Path) -> str:
-    tree = scan_all_structure(root)
-    return "Directory structure:\n" + "\n".join(format_tree_from_dict(tree))
-
-
-def format_file_content(root: Path, files: List[Path]) -> str:
-    out = []
-    for file in files:
-        rel = file.relative_to(root)
-        out.append(f"================================================\nFILE: {rel}\n================================================")
-        try:
-            with open(file, "r", encoding="utf-8", errors="replace") as f:
-                out.append(f.read())
-        except Exception as e:
-            out.append(f"[Error reading file: {e}]")
-        out.append("")
-    return "\n".join(out)
-
-
-def generate_markdown_digest(
-    repo_url: str, repo_path: str, progress_callback=None
-) -> str:
-    """
-    Generate a Markdown digest of the repository, reading large files in chunks.
-    Sends progress updates in the required JSON format if progress_callback is provided.
-    """
+def generate_markdown_digest(repo_url: str, repo_path: str, progress_callback=None) -> str:
     root = Path(repo_path)
-    files = scan_files(root)
-    summary = f"Repository: {repo_url}\nFiles analyzed: {len(files)}"
-    tree = format_tree(root)
-    content = format_file_content(root, files)
-    return f"{summary}\n\n{tree}\n\n{content}\n"
+    digest = []
+    if repo_url:
+        digest.append(f"Repository: {repo_url}")
+    text_files = get_all_text_files(root)
+    digest.append(f"Files analyzed: {len(text_files)}\n")
+    digest.append("Directory structure:")
+    digest.append("└── " + root.name)
+    digest.append(build_directory_tree(root, prefix="    "))
+    for file_path in text_files:
+        rel_path = file_path.relative_to(root)
+        digest.append("\n" + "="*48)
+        digest.append(f"FILE: {rel_path}")
+        digest.append("="*48)
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+        except Exception as e:
+            content = f"[Could not read file: {e}]"
+        digest.append(content)
+    return "\n".join(digest)
 
 
 # If run as script, keep the CLI for backward compatibility
 if __name__ == "__main__":
-    # Example usage: python converter.py <repo_url> <clone_path>
     import sys
-
     if len(sys.argv) >= 3:
         repo_url = sys.argv[1]
         clone_path = sys.argv[2]
         clone_repository(repo_url, clone_path)
-        logger.info("\n".join(print_tree(clone_path)))
         logger.info("\n--- Markdown Digest ---\n")
         logger.info(generate_markdown_digest(repo_url, clone_path))
     else:
